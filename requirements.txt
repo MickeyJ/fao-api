@@ -1,0 +1,22 @@
+# Core dependencies
+sqlalchemy>=2.0
+alembic>=1.12
+psycopg2-binary>=2.9  # PostgreSQL adapter
+
+# Optional: for working with environment variables
+python-dotenv>=1.0
+
+# Data analysis
+pandas==2.2.3
+numpy>=1.24
+
+# Web requests and APIs
+requests>=2.30
+
+# Optional: pretty-printing or CLI stuff
+rich>=13.0
+typer>=0.12
+
+# Linting/formatting (optional but helpful)
+black>=24.0
+flake8>=6.0

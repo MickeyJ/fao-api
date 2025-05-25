@@ -1,0 +1,6 @@
+ITEM_CODE = "Item Code"
+ITEM_NAME = "Item"
+CPC_CODE = "CPC Code"
+AREA_NAME = "Area"
+AREA_CODE = "Area Code"
+M49_CODE = "Area Code"

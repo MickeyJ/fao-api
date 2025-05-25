@@ -1,0 +1,67 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Environment variables and secrets
+.env
+*.env
+.flaskenv
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.dump
+*.dump.gz
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+*~
+
+# Logs
+*.log
+logs/
+
+# Alembic specific (optional, depending on your workflow)
+# You might want to keep these files versioned instead
+# alembic/versions/*.py
+
+# Local development configurations
+instance/
+local_settings.py
+
+# Coverage reports
+.coverage
+htmlcov/
+
+# pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# Other common exclusions
+.cache/
+*.bak
+tmp/
