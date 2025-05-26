@@ -65,3 +65,30 @@ htmlcov/
 .cache/
 *.bak
 tmp/
+
+# terraform
+# Terraform state
+*.tfstate
+*.tfstate.backup
+*.tfstate.*
+
+# Sensitive variable files
+*.tfvars
+*.tfvars.json
+
+# Crash logs
+crash.log
+
+# CLI caches
+.terraform/
+.terraform.lock.hcl
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# macOS / Linux / Windows system files
+.DS_Store
+Thumbs.db

@@ -7,14 +7,14 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import relationship
-from app.database import Base
+from db.database import Base
 
 
-class FoodPriceInflation(Base):
-    __tablename__ = "food_price_inflation"
+class FoodPriceIndex(Base):
+    __tablename__ = "food_price_index"
 
     id = Column(Integer, primary_key=True)
-    area_id = Column(Integer, ForeignKey("food.areas.id"), nullable=False)
+    area_id = Column(Integer, ForeignKey("areas.id"), nullable=False)
     year = Column(Integer, nullable=False)
     month = Column(Integer, nullable=True)
     value = Column(Float, nullable=False)
@@ -24,4 +24,4 @@ class FoodPriceInflation(Base):
     area = relationship("Area")
 
     def __repr__(self):
-        return f"<FoodPriceInflation(area_id={self.area_id}, year={self.year}, value={self.value})>"
+        return f"<FoodPriceIndex(area_id={self.area_id}, year={self.year}, value={self.value})>"

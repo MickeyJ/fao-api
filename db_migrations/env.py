@@ -3,8 +3,8 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
-from app.database import Base, DATABASE_URL
-from app.models import *
+from db.database import Base, DATABASE_URL
+from db.models import *
 
 from alembic import context
 
@@ -65,8 +65,6 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            include_schemas=True,
-            version_table_schema="food",  # Explicitly declare public
         )
 
         with context.begin_transaction():

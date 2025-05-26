@@ -1,10 +1,11 @@
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from app.constants.column_names import ITEM_CODE, ITEM_NAME, CPC_CODE
+from db.constants.column_names import ITEM_CODE, ITEM_NAME, CPC_CODE
 
-from . import run_with_session, get_data_from, strip_quote
-from app.models import Item
+from db.database import run_with_session
+from . import get_data_from, strip_quote
+from db.models import Item
 
 
 ITEMS_CSV = get_data_from("Prices_E_ItemCodes.csv")
@@ -58,10 +59,10 @@ def insert(df: pd.DataFrame, session: Session):
     print(f"Inserted {len(df)} items into the database.")
 
 
-def run(session):
+def run(db):
     df = load()
     df = clean(df)
-    insert(df, session)
+    insert(df, db)
 
 
 if __name__ == "__main__":

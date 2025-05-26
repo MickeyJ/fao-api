@@ -8,16 +8,15 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
-from app.database import Base
+from db.database import Base
 
 
 class ItemPrice(Base):
     __tablename__ = "item_prices"
-    __table_args__ = {"schema": "food"}
 
     id = Column(Integer, primary_key=True)
-    item_id = Column(Integer, ForeignKey("food.items.id"), nullable=False)
-    area_id = Column(Integer, ForeignKey("food.areas.id"), nullable=False)
+    item_id = Column(Integer, ForeignKey("items.id"), nullable=False)
+    area_id = Column(Integer, ForeignKey("areas.id"), nullable=False)
     value = Column(Integer)
     unit = Column(String)  # Currency
     year = Column(Integer, nullable=False)

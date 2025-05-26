@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 
-from app.database import SessionLocal
+from db.database import SessionLocal
 
 DATA_DIR = "https://food-oasis-data.s3.amazonaws.com/Prices_E_All_Data_(Normalized)"
 # DATA_DIR = Path(r"C:\Users\18057\Documents\Data\Food_FAO\Organized\Prices_E_All_Data_(Normalized)")
