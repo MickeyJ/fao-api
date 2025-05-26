@@ -1,4 +1,4 @@
-.PHONY: initialize requirements install api use-aws-db use-local-db reset-db setup-db load-data verify-data db-status
+.PHONY: initialize requirements install api use-aws-db use-local-db db-upgrade db-revision reset-db setup-db load-data verify-data db-status
 
 # Installation and setup
 initialize:
@@ -20,6 +20,14 @@ use-aws-db:
 use-local-db:
 	cp local.env .env
 	@echo "Switched to local database"
+
+db-upgrade:
+	@echo "Upgrading database..."
+	alembic upgrade head
+
+db-revision:
+	@echo "Upgrading database..."
+	alembic revision --autogenerate -m ${message} 
 
 # Database management
 reset-db:

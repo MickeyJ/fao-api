@@ -25,7 +25,7 @@ It uses official FAO bulk datasets and is designed to scale into deeper layers o
 
 ## 🗂️ Project Structure
 
-```
+```yaml
 app/
 ├── models/               # SQLAlchemy models (Item, Area, Price, Index, etc.)
 ├── database.py           # DB connection, session, metadata setup
@@ -34,64 +34,105 @@ pipelines/
 └── fao_prices_e/         # FAO Prices_E data processing
     ├── items.py          # Ingests Items from Prices_E_ItemCodes.csv
     ├── areas.py          # Ingests Areas from Prices_E_AreaCodes.csv
+    ├── item_prices.py    # Ingests Prices_E_All_Data_(Normalized).csv
     └── __init__.py       # Utilities or shared logic
 ```
 
 Each module contains:  
-- `load()`: Load data from CSV/S3  
-- `clean()`: Clean and standardize inputs  
+- `load()`: Load data from local/S3 CSV file
+- `clean()`: Clean and standardize inputs
 - `insert()`: Commit to the database  
 
 ---
 
 ## ⚙️ Setup
 
+### 0. Makefile?
+
+See Makefile for commands. Examples:
+```bash
+make use-local-db
+make db-upgrade
+make db-revision msg='add foreign keys 🔀'
+```
+
 ### 1. Install dependencies
 
-```
-pip install -r requirements.txt
+```bash
+make initialize # install using pip-tools
 ```
 
-### 2. Configure environment variables
+### 2. Create Database
+
+```sql
+CREATE DATABASE fooddb; 
+-- depending on the user in your config file,
+-- and if using the default public schema,
+-- you might need to run this
+GRANT USAGE, CREATE ON SCHEMA public TO mynameis;
+```
+
+### 3. Configure environment variables 👁️‍🗨️
 
 Create a `.env` file in the root:
-
-```
-DB_USER=your_user
-DB_PASSWORD=your_password
+*If you know me and actually want to play with this I can share the AWS db info*
+```bash
+DB_USER=mynameis
+DB_PASSWORD=mypwis
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=fooddb
-DB_SCHEMA=food
 ```
 
-### 3. Run database migrations
+### 4. Run Database Migrations
 
-```
+```bash
 alembic upgrade head
+alembic revision --autogenerate -m 'add nutrients table'
+# OR
+make db-upgrade
+make db-revision msg='add nutrients table'
 ```
 
-### 4. Populate the database
-
-```
-python -m pipelines.fao_prices_e.items
-python -m pipelines.fao_prices_e.areas
+### 5. Populate the database
+*there are also make commands*
+```bash
+python -m pipelines.fao_prices_e                # Run entire prices pipeline
+python -m pipelines.fao_prices_e.items          # Run individual module
+python -m pipelines.fao_prices_e.areas          # ***
+python -m pipelines.fao_prices_e.item_prices    # ***
 # (other pipelines in progress)
 ```
 
+### 6. Play with the API
+
+```bash
+make api
+```
+
+### 7. Terraform own AWS Aurora db (very super optional)
+*requires a good deal of other setup I won't get into here*
+```bash
+cd terraform
+terraform init
+terraform validate
+terraform plan
+terraform apply
+```
 ---
 
 ## 📊 Data Sources
-
+- https://www.fao.org/faostat/en/         — Bulk availble download here
 - https://www.fao.org/faostat/en/#data/PP — FAO Price Statistics  
 - https://www.fao.org/faostat/en/#data/CP — FAO Consumer Price Indices  
-
 ---
 
 ## 🧠 Goals & Future Plans
 
 - [x] Normalize FAO food price data  
 - [x] Support schema-aware ingestion  
+- [x] Set up remote database  
+- [x] Start building an API  
 - [ ] Integrate USDA nutrient data  
 - [ ] Add local consumer price scraping  
 - [ ] Enable dietary pattern and meal planning intelligence  
