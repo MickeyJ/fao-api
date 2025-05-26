@@ -7,7 +7,7 @@ from sqlalchemy import (
     DateTime,
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+from sqlalchemy import UniqueConstraint
 from db.database import Base
 
 
@@ -17,15 +17,18 @@ class ItemPrice(Base):
     id = Column(Integer, primary_key=True)
     item_id = Column(Integer, ForeignKey("items.id"), nullable=False)
     area_id = Column(Integer, ForeignKey("areas.id"), nullable=False)
-    value = Column(Integer)
-    unit = Column(String)  # Currency
+    value = Column(Float)
+    currency = Column(String)
     year = Column(Integer, nullable=False)
-    currency_type = Column(String, nullable=False)
 
     item = relationship("Item", back_populates="prices")
     area_rel = relationship("Area", back_populates="item_prices")
 
+    __table_args__ = (
+        UniqueConstraint("item_id", "area_id", "year", name="uq_item_price_key"),
+    )
+
     def __repr__(self):
         return (
-            f"<ItemPrice(item_id={self.ingredient_id}, value={self.value} {self.unit})>"
+            f"<ItemPrice(item_id={self.item_id}, value={self.value} {self.currency})>"
         )

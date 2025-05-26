@@ -8,12 +8,13 @@ from . import get_data_from, strip_quote
 from db.models import Area
 
 
-AREAS_CSV = get_data_from("Prices_E_AreaCodes.csv")
+CSV = get_data_from("Prices_E_AreaCodes.csv")
 
 
 def load():
     """Load and preview area data"""
-    df = pd.read_csv(AREAS_CSV, dtype=str)
+    print(f"Loading: {CSV}")
+    df = pd.read_csv(CSV, dtype=str)
     df.columns = df.columns.str.strip()  # clean whitespace
 
     print(df.shape)

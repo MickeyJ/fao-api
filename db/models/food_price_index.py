@@ -5,6 +5,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from db.database import Base
@@ -22,6 +23,12 @@ class FoodPriceIndex(Base):
     flag = Column(String(1), nullable=True)
 
     area = relationship("Area")
+
+    __table_args__ = (
+        UniqueConstraint("area_id", "year", "month", name="uq_price_index_key"),
+        # Or if month can be null and you want one record per area/year:
+        # UniqueConstraint('area_id', 'year', name='uq_price_index_key'),
+    )
 
     def __repr__(self):
         return f"<FoodPriceIndex(area_id={self.area_id}, year={self.year}, value={self.value})>"

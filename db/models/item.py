@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Index
 from sqlalchemy.orm import relationship
 from db.database import Base
 
@@ -15,6 +15,12 @@ class Item(Base):
     cpc_code = Column(String, unique=True, nullable=False)
 
     prices = relationship("ItemPrice", back_populates="item")
+
+    __table_args__ = (
+        # fao_code and cpc_code already unique individually
+        # Maybe add an index for performance
+        Index("ix_item_fao_code", "fao_code"),
+    )
 
     def __repr__(self):
         return f"<Item(id={self.id}, cpc_code='{self.cpc_code}', name='{self.name}')>"

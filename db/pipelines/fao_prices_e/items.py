@@ -8,12 +8,13 @@ from . import get_data_from, strip_quote
 from db.models import Item
 
 
-ITEMS_CSV = get_data_from("Prices_E_ItemCodes.csv")
+CSV = get_data_from("Prices_E_ItemCodes.csv")
 
 
 def load():
     """Load and preview item data."""
-    df = pd.read_csv(ITEMS_CSV, dtype=str)
+    print(f"Loading: {CSV}")
+    df = pd.read_csv(CSV, dtype=str)
     df.columns = df.columns.str.strip()  # Clean up whitespace
 
     print(df.shape)
