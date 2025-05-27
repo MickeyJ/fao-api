@@ -22,14 +22,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Debug GitHub OIDC Claims
-      run: |
-        echo "Repository: ${{ github.repository }}"
-        echo "Ref: ${{ github.ref }}"
-        echo "Actor: ${{ github.actor }}"
-        echo "Expected sub claim: repo:${{ github.repository }}:ref:${{ github.ref }}"
-        echo "Trust policy expects: repo:MickeyJ/*"
-
     - name: Configure AWS credentials (OIDC)
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -68,7 +60,23 @@ jobs:
         SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$APP_RUNNER_SERVICE'].ServiceArn" --output text)
         
         echo "Waiting for App Runner service to update..."
-        aws apprunner wait service-updated --service-arn $SERVICE_ARN
+        
+        # Poll service status until it's RUNNING
+        for i in {1..30}; do
+          STATUS=$(aws apprunner describe-service --service-arn $SERVICE_ARN --query 'Service.Status' --output text)
+          echo "Attempt $i: Service status is $STATUS"
+          
+          if [ "$STATUS" = "RUNNING" ]; then
+            echo "✅ Service is running!"
+            break
+          elif [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "UPDATE_FAILED" ]; then
+            echo "❌ Service deployment failed with status: $STATUS"
+            exit 1
+          fi
+          
+          echo "Still updating... waiting 30 seconds"
+          sleep 30
+        done
         
         # Get the service URL
         SERVICE_URL=$(aws apprunner describe-service --service-arn $SERVICE_ARN --query "Service.ServiceUrl" --output text)
