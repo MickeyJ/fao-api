@@ -26,7 +26,7 @@ resource "aws_iam_role" "github_actions" {
         }
         Action = "sts:AssumeRole"
         Condition = {
-          StringEquals = {
+          StringLike = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
             "token.actions.githubusercontent.com:sub" = "repo:MickeyJ/food-oasis-db:ref:refs/heads/main"
           }
