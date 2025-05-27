@@ -1,4 +1,4 @@
-from . import items, areas
+from . import items, areas, item_prices
 from db.database import run_with_session
 
 
@@ -6,6 +6,7 @@ def run_all(db):
     print("Running all pipelines")
     items.run(db)
     areas.run(db)
+    item_prices.run(db)
 
 
 if __name__ == "__main__":

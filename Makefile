@@ -13,8 +13,8 @@ install:
 	pip install -r requirements.txt
 
 # Database environment
-use-aws-db:
-	cp aws.env .env
+use-sb-db:
+	cp sb.env .env
 	@echo "Switched to AWS database"
 
 use-local-db:
