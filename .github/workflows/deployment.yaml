@@ -22,6 +22,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Debug GitHub OIDC Claims
+      run: |
+        echo "Repository: ${{ github.repository }}"
+        echo "Ref: ${{ github.ref }}"
+        echo "Actor: ${{ github.actor }}"
+        echo "Expected sub claim: repo:${{ github.repository }}:ref:${{ github.ref }}"
+        echo "Trust policy expects: repo:MickeyJ/*"
+
     - name: Configure AWS credentials (OIDC)
       uses: aws-actions/configure-aws-credentials@v4
       with:
