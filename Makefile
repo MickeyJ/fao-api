@@ -36,7 +36,7 @@ reset-db:
 	@echo "Database reset complete"
 
 setup-db:
-	@echo "Setting up database and loading data...."
+	@echo "Setting up database and loading data..."
 	python database_setup_workflow.py
 
 load-items:

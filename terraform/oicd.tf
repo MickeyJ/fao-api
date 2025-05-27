@@ -24,11 +24,14 @@ resource "aws_iam_role" "github_actions" {
         Principal = {
           Federated = aws_iam_openid_connect_provider.github.arn
         }
-        Action = "sts:AssumeRole"
+        Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
-          StringLike = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-            "token.actions.githubusercontent.com:sub" = "repo:MickeyJ/food-oasis-db:ref:refs/heads/main"
+          "StringLike" : {
+            "token.actions.githubusercontent.com:sub" : "repo:MickeyJ/food-oasis-db:*"
+          },
+          "ForAllValues:StringEquals" : {
+            "token.actions.githubusercontent.com:aud" : "sts.amazonaws.com",
+            "token.actions.githubusercontent.com:iss" : "https://token.actions.githubusercontent.com"
           }
         }
       }
