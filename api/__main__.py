@@ -1,8 +1,24 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+
+from . import current_version_prefix
 
 # Import all the routers
 from api.routers import analysis, visualizations, data
+
+
+api_map = {
+    "message": "Food Price Analysis API",
+    "version": "1.0.0",
+    "docs": "/docs",
+    "endpoints": {
+        "data": data.router_map,
+        "analysis": f"/{current_version_prefix}/analysis/*",
+        "visualizations": f"/{current_version_prefix}/viz/*",
+    },
+}
+
 
 # Create main app
 app = FastAPI(
@@ -11,24 +27,29 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Include all routers
-app.include_router(analysis.router)
-app.include_router(visualizations.router)
-app.include_router(data.router)
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://app.mickeymalotte.com",
+    ],  # Next.js dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Include all routers with v1 prefix
+app.include_router(analysis.router, prefix=f"/{current_version_prefix}")
+app.include_router(visualizations.router, prefix=f"/{current_version_prefix}")
+app.include_router(data.router, prefix=f"/{current_version_prefix}")
 
 
 # Root endpoint
 @app.get("/")
 def root():
-    return {
-        "message": "Food Price Analysis API",
-        "docs": "/docs",
-        "endpoints": {
-            "analysis": "/analysis/*",
-            "visualizations": "/viz/*",
-            "data": "/data/*",
-        },
-    }
+    return api_map
 
 
 # Make it runnable with: python -m api

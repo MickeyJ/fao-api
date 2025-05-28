@@ -34,17 +34,41 @@ def get_multi_line_price_trends(
     Returns data optimized for D3.js multi-line charts
     """
     if not item_code:
-        raise HTTPException(422, f"Missing item_code query parameter")
+        raise HTTPException(
+            422,
+            {
+                "errcode": 422,
+                "message": f"Missing item_code query parameter",
+            },
+        )
 
     if not (10 <= item_code <= 9999):
-        raise HTTPException(422, "item_code must be between 10 and 9999")
+        raise HTTPException(
+            422,
+            {
+                "errcode": 422,
+                "message": f"item_code must be between 10 and 9999",
+            },
+        )
 
     if not area_codes:
-        raise HTTPException(422, f"Missing area_codes query parameter")
+        raise HTTPException(
+            422,
+            {
+                "errcode": 422,
+                "message": f"Missing area_codes query parameter",
+            },
+        )
 
     # Validate inputs
     if len(area_codes) > 5:
-        raise HTTPException(422, "Maximum 5 area_codes allowed")
+        raise HTTPException(
+            422,
+            {
+                "errcode": 422,
+                "message": f"Maximum 5 area_codes allowed",
+            },
+        )
 
     results = get_multi_line_price_data(
         item_code,
@@ -55,9 +79,15 @@ def get_multi_line_price_trends(
     )
 
     if not results:
+        print(
+            f"No data found for item {item_code} in areas {area_codes} from {year_start} to {year_end}"
+        )
         raise HTTPException(
-            404,
-            f"No data found for item '{item_code}' in specified area_codes and years",
+            422,
+            {
+                "errcode": 422,
+                "message": f"No data found for item {item_code} in areas {area_codes} from {year_start} to {year_end}",
+            },
         )
 
     # Group data by area for D3.js consumption
@@ -165,42 +195,3 @@ def get_multi_line_price_data_flat(
             {"year": 2021, "USA": 1600, "China": 1250, "Brazil": 850},
         ],
     }
-
-
-# Helper endpoint to get available data for the item
-@router.get("/available-data-for-item")
-def get_available_data_for_item(
-    item: str = Query(..., description="Item name or FAO code"),
-    db: Session = Depends(get_db),
-):
-    """
-    Get what countries and years have data for this item
-    Useful for frontend to show available options
-    """
-
-    query = (
-        select(
-            Area.name.label("area_name"),
-            Area.fao_code.label("area_code"),
-            func.min(ItemPrice.year).label("earliest_year"),
-            func.max(ItemPrice.year).label("latest_year"),
-            func.count(ItemPrice.year).label("data_points"),
-            ItemPrice.currency,
-        )
-        .join(Item, Item.id == ItemPrice.item_id)
-        .join(Area, Area.id == ItemPrice.area_id)
-    )
-
-    # Filter by item
-    if item.isdigit():
-        query = query.where(Item.fao_code == int(item))
-    else:
-        query = query.where(Item.name.ilike(f"%{item}%"))
-
-    query = query.group_by(Area.name, Area.fao_code, ItemPrice.currency).order_by(
-        func.count(ItemPrice.year).desc()
-    )  # Most data first
-
-    results = db.execute(query).mappings().all()
-
-    return {"item": item, "available_areas": list(results), "total_areas": len(results)}

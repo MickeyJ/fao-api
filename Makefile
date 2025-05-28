@@ -1,4 +1,4 @@
-.PHONY: initialize requirements install api use-aws-db use-local-db db-upgrade db-revision reset-db setup-db load-data verify-data db-status
+.PHONY: initialize requirements install api use-aws-db use-local-db db-upgrade db-revision reset-db setup-db load-fao_prices_e verify-data db-status
 
 # Installation and setup
 initialize:
@@ -51,7 +51,7 @@ load-prices:
 	@echo "Loading item prices..."
 	python -m db.pipelines.fao_prices_e.item_prices
 
-load-data:
+load-fao_prices_e:
 	@echo "Loading all data..."
 	python -m db.pipelines.fao_prices_e
 
