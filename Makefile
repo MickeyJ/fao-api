@@ -1,13 +1,20 @@
-.PHONY: initialize requirements install api use-aws-db use-local-db db-upgrade db-revision reset-db setup-db load-fao_prices_e verify-data db-status
+.PHONY: initialize requirements install api \
+        use-sb-db use-local-db \
+        db-upgrade db-revision reset-db setup-db \
+        load-items load-areas load-prices load-fao_prices_e \
+        verify-data db-status \
+        analyze-anomalies \
+				tf-fmt tf-validate tf-plan tf-apply \
+        full-setup shell clean
 
 # Installation and setup
 initialize:
 	pip install pip-tools
-	pip-compile requirements.in
+	python -m piptools compile requirements.in
 	pip install -r requirements.txt
 
 requirements:
-	pip-compile requirements.in
+	python -m piptools compile requirements.in
 
 install:
 	pip install -r requirements.txt
@@ -27,7 +34,7 @@ db-upgrade:
 
 db-revision:
 	@echo "Upgrading database..."
-	alembic revision --autogenerate -m ${message} 
+	alembic revision --autogenerate -m "${message}" 
 
 # Database management
 reset-db:
@@ -68,6 +75,20 @@ db-status:
 # Application
 api:
 	python -m api
+
+# Data Quality Analysis
+analyze-anomalies:
+	@echo "🚨 Running price anomaly detection..."
+	python -m db.analysis
+
+tf-fmt:
+	terraform -chdir=./terraform fmt
+tf-validate:
+	terraform -chdir=./terraform validate
+tf-plan:
+	terraform -chdir=./terraform plan
+tf-apply:
+	terraform -chdir=./terraform apply
 
 # Complete workflow
 full-setup: use-local-db reset-db setup-db
