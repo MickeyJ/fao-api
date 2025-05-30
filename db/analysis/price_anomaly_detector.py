@@ -96,12 +96,15 @@ def detect_price_anomalies(db: Session):
         print("No anomalies detected.")
         return None
 
+    print(f"✅ Found {len(anomalies)} anomalies (out of {len(df)} checked)")
+
     insert_anomalies_batch(db, anomalies)
 
-    # save_anomalies_to_json(
-    #     anomalies,
-    #     f"reports/price_anomalies_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-    # )
+    save_anomalies_to_json(
+        anomalies,
+        len(df),
+        f"reports/price_anomalies_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+    )
 
 
 def log_row(r, title: str, extra: str = ""):
@@ -149,7 +152,7 @@ def insert_anomalies_batch(db: Session, anomalies: list):
         raise
 
 
-def save_anomalies_to_json(anomalies: list, filename: str):
+def save_anomalies_to_json(anomalies: list, total_items: int, filename: str):
     """
     Save detected anomalies to a JSON file.
     Args:
@@ -159,6 +162,7 @@ def save_anomalies_to_json(anomalies: list, filename: str):
     output_data = {
         "detection_run": {
             "timestamp": datetime.now().isoformat(),
+            "total_items": total_items,
             "total_anomalies": len(anomalies),
         },
         "anomalies": anomalies,

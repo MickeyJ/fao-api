@@ -4,6 +4,8 @@ from sqlalchemy import (
     Index,
     ForeignKey,
     UniqueConstraint,
+    DateTime,
+    func,
 )
 from sqlalchemy.orm import relationship
 from db.database import Base
@@ -15,6 +17,11 @@ class Anomaly(Base):
     id = Column(Integer, primary_key=True)
     item_id = Column(Integer, ForeignKey("items.id"), nullable=False)
     area_id = Column(Integer, ForeignKey("areas.id"), nullable=False)
+
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     details = relationship("AnomalyDetail", back_populates="anomaly")
 

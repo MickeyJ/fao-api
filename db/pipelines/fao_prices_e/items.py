@@ -1,29 +1,29 @@
 import pandas as pd
 from sqlalchemy.orm import Session
-
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from db.constants.column_names import CONST
-
+from db.utils import strip_quote, load_csv
 from db.database import run_with_session
-from . import get_data_from, strip_quote
+from . import get_csv_path_for
 from db.models import Item
 
 
-CSV_PATH = get_data_from("Prices_E_ItemCodes.csv")
+CSV_PATH = get_csv_path_for("Prices_E_ItemCodes.csv")
+
+table_name = "items"
 
 
 def load():
-    """Load and preview item data."""
-    print(f"Loading: {CSV_PATH}")
-    df = pd.read_csv(CSV_PATH, dtype=str)
-    df.columns = df.columns.str.strip()  # Clean up whitespace
-
-    print(df.shape)
-    print(df.head(5))
-    return df
+    return load_csv(CSV_PATH)
 
 
 def clean(df: pd.DataFrame) -> pd.DataFrame:
     """Remove rows with missing or malformed data"""
+    if df.empty:
+        print(f"No {table_name} data to clean.")
+        return df
+
+    print(f"\nCleaning {table_name} data...")
     initial_count = len(df)
 
     # drop rows with missing codes
@@ -42,22 +42,43 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     df[CONST.CSV.ITEM_NAME] = df[CONST.CSV.ITEM_NAME].astype(str).str.strip()
 
     final_count = len(df)
-    print(f"Validated items: {initial_count} → {final_count} rows")
+    print(f"Validated {table_name}: {initial_count} → {final_count} rows")
 
     return df
 
 
 def insert(df: pd.DataFrame, session: Session):
-    """Insert items into the database."""
-    for _, row in df.iterrows():
-        item = Item(
-            fao_code=row[CONST.CSV.ITEM_CODE],
-            cpc_code=row[CONST.CSV.CPC_CODE],
-            name=row[CONST.CSV.ITEM_NAME],
-        )
-        session.merge(item)
-    session.commit()
-    print(f"Inserted {len(df)} items into the database.")
+    """Insert into the database."""
+    if df.empty:
+        print(f"No {table_name} data to insert.")
+        return
+
+    print(f"\nPreparing bulk {table_name} insert...")
+
+    try:
+        # Ensure the Area table exists
+        Item.__table__.create(bind=session.bind, checkfirst=True)
+
+        records = []
+        for _, row in df.iterrows():
+            records.append(
+                {
+                    CONST.DB.FAO_CODE: row[CONST.CSV.ITEM_CODE],
+                    CONST.DB.CPC_CODE: row[CONST.CSV.CPC_CODE],
+                    CONST.DB.NAME: row[CONST.CSV.ITEM_NAME],
+                }
+            )
+
+        # Batch insert with conflict handling
+        stmt = pg_insert(Item).values(records)
+        stmt = stmt.on_conflict_do_nothing(index_elements=[CONST.DB.FAO_CODE])
+
+        session.execute(stmt)
+        session.commit()
+        print(f"Inserted {len(df)} {table_name} into the database.")
+    except Exception as e:
+        print(f"Error inserting {table_name}: {e}")
+        session.rollback()
 
 
 def run(db):

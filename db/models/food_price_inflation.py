@@ -6,6 +6,8 @@ from sqlalchemy import (
     ForeignKey,
     Text,
     UniqueConstraint,
+    DateTime,
+    func,
 )
 from sqlalchemy.orm import relationship
 from db.database import Base
@@ -21,6 +23,11 @@ class FoodPriceInflation(Base):
     value = Column(Float, nullable=False)
     note = Column(Text, nullable=True)
     flag = Column(String(1), nullable=True)
+
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     area = relationship("Area")
 

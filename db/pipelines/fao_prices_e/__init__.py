@@ -4,26 +4,14 @@ from pathlib import Path
 from db.constants.currency_codes import M49_TO_CURRENCY
 from db.database import SessionLocal
 
-# DATA_DIR = "https://food-oasis-data.s3.amazonaws.com/Prices_E_All_Data_(Normalized)"
-DATA_DIR = Path(
+# CSV_DIR = "https://food-oasis-data.s3.amazonaws.com/Prices_E_All_Data_(Normalized)"
+CSV_DIR = Path(
     r"C:\Users\18057\Documents\Data\Food_FAO\Organized\Prices_E_All_Data_(Normalized)"
 )
 
 
-def strip_quote(df: pd.DataFrame, column_name, quote="'"):
-    return df[column_name].str.replace(quote, "").str.strip()
-
-
-def get_data_from(filename):
-    return f"{DATA_DIR}/{filename}"
-
-
-def run_with_session(fn):
-    session = SessionLocal()
-    try:
-        fn(session)
-    finally:
-        session.close()
+def get_csv_path_for(filename):
+    return f"{CSV_DIR}/{filename}"
 
 
 def standardize_currency_by_m49(df, m49_code_col, unit_col):

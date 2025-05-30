@@ -1,38 +1,33 @@
 import pandas as pd
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-
 from db.constants.column_names import CONST
-
+from db.utils import strip_quote, load_csv
 from db.database import run_with_session
-from . import get_data_from, strip_quote, standardize_currency_by_m49
+from . import get_csv_path_for, standardize_currency_by_m49
 from db.models import ItemPrice, Item, Area
 
-CSV_PATH = get_data_from("Prices_E_All_Data_(Normalized).csv")
+CSV_PATH = get_csv_path_for("Prices_E_All_Data_(Normalized).csv")
+
+table_name = "item_prices"
 
 
 def load():
-    """Load and preview item price data."""
-    print(f"\nLoading: {CSV_PATH}")
-    df = pd.read_csv(CSV_PATH, dtype=str)
-    df.columns = df.columns.str.strip()  # Clean up whitespace
-
-    print(f"\nData shape: {df.shape}")
-    print("Columns:", df.columns.tolist())
-    print("\nElement types in your data:")
-    print(df["Element Code"].value_counts())
-    print("\nFirst 5 rows:")
-    print(df.head(5))
-    return df
+    return load_csv(CSV_PATH)
 
 
 def clean(df: pd.DataFrame) -> pd.DataFrame:
     """Remove rows with missing or malformed data"""
-    print("\nCleaning data...")
+    if df.empty:
+        print(f"No {table_name} data to clean.")
+        return df
+
+    print(f"\nCleaning {table_name} data...")
     initial_count = len(df)
 
     # Filter out price indices (Element Code 5539)
-    df = df[df["Element Code"] != "5539"].copy()
+    df = df[df["Element Code"] == "5532"].copy()
+    # df = df[df["Flag"] == "A"].copy()
     price_count = len(df)
     index_count = initial_count - price_count
 
@@ -101,62 +96,81 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     print(df.head(10))
 
     final_count = len(df)
-    print(f"\nValidated items: {initial_count} → {final_count} rows")
+    print(f"\nValidated {table_name} items: {initial_count} → {final_count} rows")
 
     return df
 
 
 def insert(df: pd.DataFrame, session: Session):
     """Insert items into the database."""
-    print("\nPreparing chunked bulk insert...")
+    if df.empty:
+        print(f"No {table_name} data to insert.")
+        return
 
-    # Get mappings of FAO codes to database IDs
-    items_map = {item.fao_code: item.id for item in session.query(Item).all()}
-    areas_map = {area.fao_code: area.id for area in session.query(Area).all()}
+    print(f"\nPreparing chunked bulk {table_name} insert...")
 
-    print(f"\nFound {len(items_map)} items and {len(areas_map)} areas in database")
+    try:
+        # Ensure the Area table exists
+        ItemPrice.__table__.create(bind=session.bind, checkfirst=True)
 
-    CHUNK_SIZE = 5000  # Adjust based on performance
-    total_inserted = 0
-    total_skipped = 0
+        # Get mappings of FAO codes to database IDs
+        items_map = {item.fao_code: item.id for item in session.query(Item).all()}
+        areas_map = {area.fao_code: area.id for area in session.query(Area).all()}
 
-    for i in range(0, len(df), CHUNK_SIZE):
-        chunk = df.iloc[i : i + CHUNK_SIZE]
+        print(f"\nFound {len(items_map)} items and {len(areas_map)} areas in database")
 
-        records = []
-        skipped = 0
-        for _, row in chunk.iterrows():
-            item_id = items_map.get(row[CONST.CSV.ITEM_CODE])
-            area_id = areas_map.get(row[CONST.CSV.AREA_CODE])
+        CHUNK_SIZE = 5000  # Adjust based on performance
+        total_inserted = 0
+        total_skipped = 0
 
-            if item_id is not None and area_id is not None:
-                records.append(
-                    {
-                        "item_id": item_id,
-                        "area_id": area_id,
-                        "value": row[CONST.CSV.ITEM_VALUE],
-                        "currency": row[CONST.CSV.ITEM_UNIT],
-                        "year": row[CONST.CSV.YEAR],
-                    }
+        for i in range(0, len(df), CHUNK_SIZE):
+            chunk = df.iloc[i : i + CHUNK_SIZE]
+
+            records = []
+            skipped = 0
+            for _, row in chunk.iterrows():
+                item_id = items_map.get(row[CONST.CSV.ITEM_CODE])
+                area_id = areas_map.get(row[CONST.CSV.AREA_CODE])
+
+                if item_id is not None and area_id is not None:
+                    records.append(
+                        {
+                            CONST.DB.ITEM_ID: item_id,
+                            CONST.DB.AREA_ID: area_id,
+                            CONST.DB.VALUE: row[CONST.CSV.ITEM_VALUE],
+                            CONST.DB.CURRENCY: row[CONST.CSV.ITEM_UNIT],
+                            CONST.DB.YEAR: row[CONST.CSV.YEAR],
+                        }
+                    )
+                else:
+                    skipped += 1
+
+            if records:
+                stmt = pg_insert(ItemPrice).values(records)
+                stmt = stmt.on_conflict_do_nothing(
+                    index_elements=[
+                        CONST.DB.ITEM_ID,
+                        CONST.DB.AREA_ID,
+                        CONST.DB.VALUE,
+                        CONST.DB.CURRENCY,
+                        CONST.DB.YEAR,
+                    ]
                 )
-            else:
-                skipped += 1
+                session.execute(stmt)
+                session.commit()
 
-        if records:
-            stmt = pg_insert(ItemPrice.__table__).values(records)
-            stmt = stmt.on_conflict_do_nothing(
-                index_elements=["item_id", "area_id", "year"]
+            total_inserted += len(records)
+            total_skipped += skipped
+            print(
+                f"Processed chunk {i//CHUNK_SIZE + 1}: {total_inserted:,} inserted, {total_skipped:,} skipped"
             )
-            session.execute(stmt)
-            session.commit()
 
-        total_inserted += len(records)
-        total_skipped += skipped
         print(
-            f"Processed chunk {i//CHUNK_SIZE + 1}: {total_inserted:,} inserted, {total_skipped:,} skipped"
+            f"✅ {table_name} insert complete: {total_inserted:,} inserted, {total_skipped:,} skipped"
         )
-
-    print(f"✅ Complete: {total_inserted:,} inserted, {total_skipped:,} skipped")
+    except Exception as e:
+        print(f"Error inserting {table_name}: {e}")
+        session.rollback()
 
 
 def run(db):

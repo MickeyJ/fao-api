@@ -33,9 +33,12 @@ class DBColumns:
     AREA_NAME = "area_name"
     AREA_CODE = "area_code"
     PRICE = "price"
+    VALUE = "value"
     YEAR = "year"
+    CURRENCY = "currency"
     CURRENCY_NAME = "currency_name"
     CURRENCY_CODE = "currency_code"
+    NAME = "name"
 
 
 class Constants:

@@ -5,6 +5,8 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     DateTime,
+    DateTime,
+    func,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy import UniqueConstraint
@@ -21,11 +23,18 @@ class ItemPrice(Base):
     currency = Column(String)
     year = Column(Integer, nullable=False)
 
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, default=func.now(), onupdate=func.now(), nullable=False
+    )
+
     item = relationship("Item", back_populates="prices")
     area_rel = relationship("Area", back_populates="item_prices")
 
     __table_args__ = (
-        UniqueConstraint("item_id", "area_id", "year", name="uq_item_price_key"),
+        UniqueConstraint(
+            "item_id", "area_id", "value", "currency", "year", name="uq_item_price_key"
+        ),
     )
 
     def __repr__(self):

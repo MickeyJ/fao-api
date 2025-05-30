@@ -1,13 +1,6 @@
 import calendar
 from typing import Optional
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Float,
-    ForeignKey,
-    Index,
-)
+from sqlalchemy import Column, Integer, Float, ForeignKey, Index, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import UniqueConstraint
 from db.database import Base
@@ -22,6 +15,11 @@ class ExchangeRate(Base):
     value = Column(Float, nullable=False)
     year = Column(Integer, nullable=False)
     month: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     @property
     def month_name(self):

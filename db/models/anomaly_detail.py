@@ -7,6 +7,8 @@ from sqlalchemy import (
     ForeignKey,
     Text,
     UniqueConstraint,
+    DateTime,
+    func,
 )
 from sqlalchemy.orm import relationship
 from db.database import Base
@@ -22,6 +24,11 @@ class AnomalyDetail(Base):
     details = Column(Text, nullable=False)
 
     anomaly = relationship("Anomaly", back_populates="details")
+
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     __table_args__ = (
         Index("ix_anomaly_detail_anomaly_id", "anomaly_id"),

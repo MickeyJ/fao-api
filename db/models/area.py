@@ -1,9 +1,4 @@
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Index,
-)
+from sqlalchemy import Column, Integer, String, Index, DateTime, func
 from sqlalchemy.orm import relationship
 from db.database import Base
 
@@ -19,12 +14,14 @@ class Area(Base):
     # M49 Unique global identifier for the area
     m49_code = Column(String, unique=True, nullable=False)
 
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, default=func.now(), onupdate=func.now(), nullable=False
+    )
+
     item_prices = relationship("ItemPrice", back_populates="area_rel")
 
-    __table_args__ = (
-        # fao_code and m49_code already unique individually
-        Index("ix_area_fao_code", "fao_code"),
-    )
+    __table_args__ = (Index("ix_area_fao_code", "fao_code"),)
 
     def __repr__(self):
         return f"<Area(name='{self.name}', area_code='{self.area_code}')>"

@@ -20,6 +20,8 @@ SELECT
     item_prices.currency AS item_currency,
     item_prices.value AS item_price
 FROM anomalies
-JOIN item_prices ON anomalies.item_id = item_prices.item_id
+JOIN item_prices ON anomalies.item_id = item_prices.item_id 
+                 AND anomalies.area_id = item_prices.area_id
 JOIN areas ON anomalies.area_id = areas.id
-JOIN items ON anomalies.item_id = items.id;
+JOIN items ON anomalies.item_id = items.id
+ORDER BY areas.name, items.name, item_prices.year;

@@ -1,11 +1,4 @@
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Index,
-    UniqueConstraint,
-)
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Index, DateTime, func
 from db.database import Base
 
 
@@ -15,6 +8,11 @@ class Currency(Base):
     id = Column(Integer, primary_key=True)
     currency_code = Column(String, unique=True, nullable=False)
     currency_name = Column(String, nullable=False)
+
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     __table_args__ = (Index("ix_currency_code", "currency_code"),)
 

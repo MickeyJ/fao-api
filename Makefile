@@ -1,6 +1,9 @@
+include .env
+export
+
 .PHONY: initialize requirements install api \
         use-sb-db use-local-db \
-        db-upgrade db-revision reset-db setup-db \
+        db-upgrade db-revision reset-db show-all-tables clear-all-tables \
         load-items load-areas load-prices \
 				load-all-fao-prices-e \
 				load-all-fao-exchange-rate-e \
@@ -38,15 +41,19 @@ db-revision:
 	@echo "Upgrading database..."
 	alembic revision --autogenerate -m "${message}" 
 
-# Database management
 reset-db:
 	@echo "Resetting database..."
-	psql "$$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f db/sql/drop_tables.sql
 	@echo "Database reset complete"
 
-setup-db:
-	@echo "Setting up database and loading data..."
-	python database_setup_workflow.py
+show-all-tables:
+	@echo "Showing all tables in the database..."
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f db/sql/select_all_tables.sql
+
+clear-all-tables:
+	@echo "Showing all tables in the database..."
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f db/sql/clear_all_tables.sql
+
 
 load-items:
 	@echo "Loading items..."
@@ -65,6 +72,9 @@ load-all-fao-prices-e:
 
 load-all-fao-exchange-rate-e:
 	python -m db.pipelines.fao_exchange_rate_e
+
+load-all-pipelines:
+	python -m db.pipelines
 
 verify-data:
 	@echo "Verifying data..."
