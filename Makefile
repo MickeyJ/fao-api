@@ -1,7 +1,9 @@
 .PHONY: initialize requirements install api \
         use-sb-db use-local-db \
         db-upgrade db-revision reset-db setup-db \
-        load-items load-areas load-prices load-fao_prices_e \
+        load-items load-areas load-prices \
+				load-all-fao-prices-e \
+				load-all-fao-exchange-rate-e \
         verify-data db-status \
         analyze-anomalies \
 				tf-fmt tf-validate tf-plan tf-apply \
@@ -58,9 +60,11 @@ load-prices:
 	@echo "Loading item prices..."
 	python -m db.pipelines.fao_prices_e.item_prices
 
-load-fao_prices_e:
-	@echo "Loading all data..."
+load-all-fao-prices-e:
 	python -m db.pipelines.fao_prices_e
+
+load-all-fao-exchange-rate-e:
+	python -m db.pipelines.fao_exchange_rate_e
 
 verify-data:
 	@echo "Verifying data..."

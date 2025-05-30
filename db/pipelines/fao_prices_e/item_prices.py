@@ -2,29 +2,19 @@ import pandas as pd
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-
-from db.constants.column_names import (
-    ITEM_VALUE,
-    ITEM_UNIT,
-    YEAR,
-    ITEM_CURRENCY_TYPE,
-    ITEM_CODE,
-    AREA_CODE,
-    AREA_NAME,
-    ITEM_PRICE_M49_CODE,
-)
+from db.constants.column_names import CONST
 
 from db.database import run_with_session
 from . import get_data_from, strip_quote, standardize_currency_by_m49
 from db.models import ItemPrice, Item, Area
 
-CSV = get_data_from("Prices_E_All_Data_(Normalized).csv")
+CSV_PATH = get_data_from("Prices_E_All_Data_(Normalized).csv")
 
 
 def load():
     """Load and preview item price data."""
-    print(f"\nLoading: {CSV}")
-    df = pd.read_csv(CSV, dtype=str)
+    print(f"\nLoading: {CSV_PATH}")
+    df = pd.read_csv(CSV_PATH, dtype=str)
     df.columns = df.columns.str.strip()  # Clean up whitespace
 
     print(f"\nData shape: {df.shape}")
@@ -51,14 +41,14 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df[
         [
-            ITEM_CODE,
-            AREA_CODE,
-            AREA_NAME,
-            ITEM_PRICE_M49_CODE,
-            ITEM_VALUE,
-            ITEM_UNIT,
-            YEAR,
-            ITEM_CURRENCY_TYPE,
+            CONST.CSV.ITEM_CODE,
+            CONST.CSV.AREA_CODE,
+            CONST.CSV.AREA_NAME,
+            CONST.CSV.ITEM_PRICE_M49_CODE,
+            CONST.CSV.ITEM_VALUE,
+            CONST.CSV.ITEM_UNIT,
+            CONST.CSV.YEAR,
+            CONST.CSV.ITEM_CURRENCY_TYPE,
         ]
     ].copy()
 
@@ -66,7 +56,11 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     # df[ITEM_UNIT] = df.groupby([AREA_CODE])[ITEM_UNIT].ffill().bfill()
 
     # Identify rows that will be dropped for missing data
-    dropped_mask = df[df[ITEM_VALUE].isna() | df[ITEM_UNIT].isna() | df[YEAR].isna()]
+    dropped_mask = df[
+        df[CONST.CSV.ITEM_VALUE].isna()
+        | df[CONST.CSV.ITEM_UNIT].isna()
+        | df[CONST.CSV.YEAR].isna()
+    ]
 
     print(f"\nRows to be dropped for missing data: {len(dropped_mask)}")
     if len(dropped_mask) > 0:
@@ -74,27 +68,35 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
         print(dropped_mask.head(2))
 
     # Then apply the filter
-    df = df.dropna(subset=[ITEM_VALUE, ITEM_UNIT, YEAR]).copy()
+    df = df.dropna(
+        subset=[CONST.CSV.ITEM_VALUE, CONST.CSV.ITEM_UNIT, CONST.CSV.YEAR]
+    ).copy()
 
     # strip out any single quotes and ensure type
-    df[ITEM_CODE] = strip_quote(df, ITEM_CODE).astype(int)
-    df[AREA_CODE] = strip_quote(df, AREA_CODE).astype(int)
-    df[ITEM_PRICE_M49_CODE] = strip_quote(df, ITEM_PRICE_M49_CODE).astype(str)
+    df[CONST.CSV.ITEM_CODE] = strip_quote(df, CONST.CSV.ITEM_CODE).astype(int)
+    df[CONST.CSV.AREA_CODE] = strip_quote(df, CONST.CSV.AREA_CODE).astype(int)
+    df[CONST.CSV.ITEM_PRICE_M49_CODE] = strip_quote(
+        df, CONST.CSV.ITEM_PRICE_M49_CODE
+    ).astype(str)
 
     # ensure item value is an float
-    df[ITEM_VALUE] = df[ITEM_VALUE].str.strip().astype(float)
+    df[CONST.CSV.ITEM_VALUE] = df[CONST.CSV.ITEM_VALUE].str.strip().astype(float)
 
     # ensure year is an integer
-    df[YEAR] = df[YEAR].str.strip().astype(int)
+    df[CONST.CSV.YEAR] = df[CONST.CSV.YEAR].str.strip().astype(int)
 
     # strip whitespace from unit
-    df[ITEM_UNIT] = df[ITEM_UNIT].astype(str).str.strip()
+    df[CONST.CSV.ITEM_UNIT] = df[CONST.CSV.ITEM_UNIT].astype(str).str.strip()
 
     # replace FAO units (LCU, SLC, USD) with country specific currency units
-    df = standardize_currency_by_m49(df, ITEM_PRICE_M49_CODE, ITEM_UNIT)
+    df = standardize_currency_by_m49(
+        df, CONST.CSV.ITEM_PRICE_M49_CODE, CONST.CSV.ITEM_UNIT
+    )
 
     # strip whitespace from currency type
-    df[ITEM_CURRENCY_TYPE] = df[ITEM_CURRENCY_TYPE].astype(str).str.strip()
+    df[CONST.CSV.ITEM_CURRENCY_TYPE] = (
+        df[CONST.CSV.ITEM_CURRENCY_TYPE].astype(str).str.strip()
+    )
 
     print(df.head(10))
 
@@ -124,17 +126,17 @@ def insert(df: pd.DataFrame, session: Session):
         records = []
         skipped = 0
         for _, row in chunk.iterrows():
-            item_id = items_map.get(row[ITEM_CODE])
-            area_id = areas_map.get(row[AREA_CODE])
+            item_id = items_map.get(row[CONST.CSV.ITEM_CODE])
+            area_id = areas_map.get(row[CONST.CSV.AREA_CODE])
 
             if item_id is not None and area_id is not None:
                 records.append(
                     {
                         "item_id": item_id,
                         "area_id": area_id,
-                        "value": row[ITEM_VALUE],
-                        "currency": row[ITEM_UNIT],
-                        "year": row[YEAR],
+                        "value": row[CONST.CSV.ITEM_VALUE],
+                        "currency": row[CONST.CSV.ITEM_UNIT],
+                        "year": row[CONST.CSV.YEAR],
                     }
                 )
             else:

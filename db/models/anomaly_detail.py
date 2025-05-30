@@ -24,7 +24,6 @@ class AnomalyDetail(Base):
     anomaly = relationship("Anomaly", back_populates="details")
 
     __table_args__ = (
-        # fao_code and m49_code already unique individually
         Index("ix_anomaly_detail_anomaly_id", "anomaly_id"),
         Index("ix_anomaly_detail_type", "anomaly_type"),
         UniqueConstraint(

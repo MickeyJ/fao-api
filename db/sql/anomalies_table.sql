@@ -11,3 +11,15 @@ CREATE TABLE anomalies_details (
     anomaly_date DATE NOT NULL,
     details TEXT NOT NULL
 );
+
+
+SELECT 
+    areas.name AS area_name,
+    items.name AS item_name,
+    item_prices.year AS item_year,
+    item_prices.currency AS item_currency,
+    item_prices.value AS item_price
+FROM anomalies
+JOIN item_prices ON anomalies.item_id = item_prices.item_id
+JOIN areas ON anomalies.area_id = areas.id
+JOIN items ON anomalies.item_id = items.id;

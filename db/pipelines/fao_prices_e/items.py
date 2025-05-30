@@ -1,20 +1,20 @@
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from db.constants.column_names import ITEM_CODE, ITEM_NAME, CPC_CODE
+from db.constants.column_names import CONST
 
 from db.database import run_with_session
 from . import get_data_from, strip_quote
 from db.models import Item
 
 
-CSV = get_data_from("Prices_E_ItemCodes.csv")
+CSV_PATH = get_data_from("Prices_E_ItemCodes.csv")
 
 
 def load():
     """Load and preview item data."""
-    print(f"Loading: {CSV}")
-    df = pd.read_csv(CSV, dtype=str)
+    print(f"Loading: {CSV_PATH}")
+    df = pd.read_csv(CSV_PATH, dtype=str)
     df.columns = df.columns.str.strip()  # Clean up whitespace
 
     print(df.shape)
@@ -27,19 +27,19 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     initial_count = len(df)
 
     # drop rows with missing codes
-    df = df.dropna(subset=[ITEM_CODE, CPC_CODE])
+    df = df.dropna(subset=[CONST.CSV.ITEM_CODE, CONST.CSV.CPC_CODE])
 
     # remove single quote from cpc code
-    df[CPC_CODE] = strip_quote(df, CPC_CODE)
+    df[CONST.CSV.CPC_CODE] = strip_quote(df, CONST.CSV.CPC_CODE)
 
     # ensure item code is an integer
-    df[ITEM_CODE] = df[ITEM_CODE].astype(int)
+    df[CONST.CSV.ITEM_CODE] = df[CONST.CSV.ITEM_CODE].astype(int)
 
     # ensure cpc code is string and not null
-    df[CPC_CODE] = df[CPC_CODE].fillna("").astype(str).str.strip()
+    df[CONST.CSV.CPC_CODE] = df[CONST.CSV.CPC_CODE].fillna("").astype(str).str.strip()
 
     # strip whitespace from name
-    df[ITEM_NAME] = df[ITEM_NAME].astype(str).str.strip()
+    df[CONST.CSV.ITEM_NAME] = df[CONST.CSV.ITEM_NAME].astype(str).str.strip()
 
     final_count = len(df)
     print(f"Validated items: {initial_count} → {final_count} rows")
@@ -51,9 +51,9 @@ def insert(df: pd.DataFrame, session: Session):
     """Insert items into the database."""
     for _, row in df.iterrows():
         item = Item(
-            fao_code=row[ITEM_CODE],
-            cpc_code=row[CPC_CODE],
-            name=row[ITEM_NAME],
+            fao_code=row[CONST.CSV.ITEM_CODE],
+            cpc_code=row[CONST.CSV.CPC_CODE],
+            name=row[CONST.CSV.ITEM_NAME],
         )
         session.merge(item)
     session.commit()
