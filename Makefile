@@ -37,7 +37,8 @@ endif
 	create-test-db drop-test-db create-test-db drop-test-db reset-test-db reset-db \
 	show-all-tables clear-all-tables rm-codebase reset-and-test pipe-reset-and-test \
 	run-pipelines \
-	api
+	api \
+	tf-fmt tf-validate tf-plan tf-apply
 
 # =-=-=--=-=-=-=-=-=-=
 #  Python Environment
@@ -174,3 +175,12 @@ run-pipelines:
 
 api:
 	$(ACTIVATE) $(PYTHON) -m fao.src.api
+
+tf-fmt:
+	terraform -chdir=./terraform fmt
+tf-validate:
+	terraform -chdir=./terraform validate
+tf-plan:
+	terraform -chdir=./terraform plan
+tf-apply:
+	terraform -chdir=./terraform apply

@@ -1,0 +1,11 @@
+# Exclude pipeline ETL code but keep models
+fao/src/db/pipelines/**/*.py
+!fao/src/db/pipelines/**/*_model.py
+!fao/src/db/pipelines/**/__init__.py
+
+# Exclude pipeline JSON files
+fao/src/db/pipelines/**/*.json
+
+# Python cache files
+**/__pycache__/
+**/*.pyc
