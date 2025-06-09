@@ -27,7 +27,7 @@ resource "aws_iam_role" "github_actions" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           "StringLike" : {
-            "token.actions.githubusercontent.com:sub" : "repo:MickeyJ/food-oasis-db:*"
+            "token.actions.githubusercontent.com:sub" : "repo:MickeyJ/fao-api:*"
           },
           "ForAllValues:StringEquals" : {
             "token.actions.githubusercontent.com:aud" : "sts.amazonaws.com",
