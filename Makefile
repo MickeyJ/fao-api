@@ -1,9 +1,9 @@
 include .env
 export
 
-# =-=-=--=-=-=-=-=-=-=
-#   Environment Setup
-# =-=-=--=-=-=-=-=-=-=
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+#   	 Environment Variables
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 
 # Check for environment and set activation command
 ifdef VIRTUAL_ENV
@@ -28,21 +28,18 @@ else
     PYTHON = python
 endif
 
-.PHONY: \
-	venv env-status \
-	initialize requirements install \
-	generator pre-test process-aquastat process-csv \
-	run-all-pipelines \
-	use-remote-db use-local-db db-init db-upgrade db-revision  \
-	create-test-db drop-test-db create-test-db drop-test-db reset-test-db reset-db \
-	show-all-tables clear-all-tables rm-codebase reset-and-test pipe-reset-and-test \
-	run-pipelines \
-	api \
-	tf-fmt tf-validate tf-plan tf-apply
+.PHONY: venv env-status initialize requirements install api \
+	run-all-pipelines-local run-all-pipelines-remote NO-DIRECT-USE-run-all-pipelines \
+	use-remote-db use-local-db use-local-db-admin db-init db-upgrade-local db-revision-local \
+	db-make-current-local db-upgrade-remote db-revision-remote NO-DIRECT-USE-db-upgrade \
+	NO-DIRECT-USE-db-revision NO-DIRECT-USE-db-make-current create-db-local-admin \
+	drop-db-local-admin clear-all-tables-local show-all-tables NO-DIRECT-USE-create-db \
+	NO-DIRECT-USE-drop-db NO-DIRECT-USE-reset-db NO-DIRECT-USE-clear-all-tables tf-fmt tf-validate \
+	tf-plan tf-apply
 
-# =-=-=--=-=-=-=-=-=-=
-#  Python Environment
-# =-=-=--=-=-=-=-=-=-=
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+#  			Python Environment
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 venv:
 	@$(PYTHON) -m venv venv
 	@echo "✅ Virtual environment created. Activate with:"
@@ -53,9 +50,9 @@ env-status:
 	@echo "=== Environment Status ==="
 	$(ACTIVATE) echo "Python: $$(which $(PYTHON))"
 
-# =-=-=--=-=-=-=-=-=-=
-# Package Installation
-# =-=-=--=-=-=-=-=-=-=
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+# 		Package Installation
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 initialize:
 	$(ACTIVATE) $(PYTHON) -m pip install pip-tools
 	$(ACTIVATE) $(PYTHON) -m piptools compile requirements.in
@@ -68,37 +65,36 @@ requirements:
 install:
 	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
 
-# =-=-=--=-=-=-=-=-=
-# Generator commands
-# =-=-=--=-=-=-=-=-=
-generate:
-	@echo "Generating code..."
-	$(ACTIVATE) $(PYTHON) -m generator --all
-
-pre-test:
-	@echo "Generating code..."
-	$(ACTIVATE) $(PYTHON) -m generator --pre_test
-
-process-aquastat:
-	@echo "Generating code..."
-	$(ACTIVATE) $(PYTHON) -m generator.aquastat_pre_processor "C:\Users\18057\Documents\Data\fao-test-zips\all\AQUASTAT\bulk_eng(in).csv"
-
-process-csv:
-	@echo "Generating code..."
-	$(ACTIVATE) $(PYTHON) -m generator --process_csv
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+#        		Local Api
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+api:
+	$(ACTIVATE) $(PYTHON) -m fao.src.api
 
 
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+# 			Pipeline commands
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+run-all-pipelines-local:
+	make use-local-db
+	@echo " "
+	@echo "Running pipeline on LOCAL database..."
+	$(MAKE) NO-DIRECT-USE-run-all-pipelines
 
-# =-=-=--=-=-=-=-=-
-# Pipeline commands
-# =-=-=--=-=-=-=-=-
-run-all-pipelines:
-	@echo "Running pipeline..."
+run-all-pipelines-remote:
+	make use-remote-db
+	@echo " "
+	@echo "Running pipeline on REMOTE database..."
+	$(MAKE) NO-DIRECT-USE-run-all-pipelines
+	make use-local-db
+
+NO-DIRECT-USE-run-all-pipelines:
 	$(ACTIVATE) $(PYTHON) -m fao.src.db.pipelines
 
-# =-=-=--=-=-=-=-=-
-# Database commands
-# =-=-=--=-=-=-=-=-
+
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+#  		Change .env Commands
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 use-remote-db:
 	cp remote.env .env
 	@echo "Switched to remote database"
@@ -111,71 +107,108 @@ use-local-db-admin:
 	cp local-admin.env .env
 	@echo "Switched to local database as admin"
 
+
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+#    Database Migrations (alembic)
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 db-init:
 	@echo "Initialize Alembic"
 	alembic init migrations
 
-db-upgrade:
-	@echo "Upgrading database..."
-	alembic upgrade head
-
-db-revision:
-	@echo "Upgrading database..."
-	alembic revision --autogenerate -m "${msg}" 
-
-create-db:
+db-upgrade-local:
 	make use-local-db-admin
-	@echo "Creating database..."
-	$(MAKE) create-test-db
-	@echo "Database created with permissions"
-
-create-test-db:
-	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/postgres" -f sql/create_database.sql
+	$(MAKE) NO-DIRECT-USE-db-upgrade db_type=LOCAL
 	make use-local-db
 
-drop-db:
+db-revision-local:
 	make use-local-db-admin
-	@echo "Dropping database..."
-	$(MAKE) drop-test-db
+	$(MAKE) NO-DIRECT-USE-db-revision msg="${msg}" db_type=LOCAL
+	make use-local-db
+
+db-stamp-local:
+	make use-local-db-admin
+	$(MAKE) NO-DIRECT-USE-db-stamp db_type=LOCAL stamp="${stamp}"
+	$(MAKE) NO-DIRECT-USE-db-upgrade db_type=LOCAL
+	make use-local-db
+
+db-upgrade-remote:
+	make use-remote-db
+	$(MAKE) NO-DIRECT-USE-db-upgrade db_type=REMOTE
+	make use-local-db
+
+db-revision-remote:
+	make use-remote-db
+	$(MAKE) NO-DIRECT-USE-db-revision msg="${msg}" db_type=REMOTE
+	make use-local-db
+
+NO-DIRECT-USE-db-stamp:
+	@echo " "
+	@echo "Setting ${db_type} database to migration ${stamp}..."
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -c "DELETE FROM alembic_version;"
+	@echo " "
+	alembic stamp ${stamp}
+
+NO-DIRECT-USE-db-upgrade:
+	@echo " "
+	@echo "Upgrading ${db_type} database..."
+	alembic upgrade head
+
+NO-DIRECT-USE-db-revision:
+	@echo " "
+	@echo "Creating revision on ${db_type} database..."
+	alembic revision --autogenerate -m "${msg}" 
+
+
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+# 			Database Modifications
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+create-db-local-admin:
+	make use-local-db-admin
+	@echo " "
+	@echo "Creating local database 'fao'..."
+	$(MAKE) NO-DIRECT-USE-create-db
+	@echo "Database created with permissions"
+	make use-local-db
+
+drop-db-local-admin:
+	make use-local-db-admin
+	@echo " "
+	@echo "Dropping local database 'fao'..."
+	$(MAKE) NO-DIRECT-USE-drop-db
+	@echo " "
 	@echo "Database 'fao' dropped"
 	make use-local-db
 
-drop-test-db:
-	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/postgres" -c "DROP DATABASE IF EXISTS fao;"
+clear-all-tables-local:
 	make use-local-db
-
-reset-test-db: drop-test-db create-test-db
-	@echo "Test database reset complete"
-
-reset-db:
-	@echo "Resetting database..."
-	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/drop_tables.sql
-	@echo "Database reset complete"
+	@echo " "
+	@echo "Clear all local tables..."
+	$(MAKE) NO-DIRECT-USE-clear-all-tables
+	make use-local-db
 
 show-all-tables:
 	@echo "Showing all tables in the database..."
 	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/select_all_tables.sql
 
-clear-all-tables:
+NO-DIRECT-USE-create-db:
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/postgres" -f sql/create_database.sql
+
+NO-DIRECT-USE-drop-db:
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/postgres" -c "DROP DATABASE IF EXISTS fao;"
+
+NO-DIRECT-USE-reset-db:
+	@echo "Resetting database..."
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/drop_tables.sql
+	@echo "Database reset complete"
+
+NO-DIRECT-USE-clear-all-tables:
 	@echo "Showing all tables in the database..."
 	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/clear_all_tables.sql
 
-rm-codebase:
-	@echo "Removing generated code and cache..."
-	rm -rf fao \
-	analysis/csv_analysis_cache.json \
-	analysis/pipeline_spec.json
 
-db-reset-and-test: clear-all-tables rm-codebase generate
-pipe-reset-and-test: rm-codebase generate
-
-run-pipelines:
-	@echo "Running all pipelines..."
-	$(ACTIVATE) $(PYTHON) -m fao.src.db.pipelines
-
-api:
-	$(ACTIVATE) $(PYTHON) -m fao.src.api
-
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+# 		 Terraform Commands
+# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 tf-fmt:
 	terraform -chdir=./terraform fmt
 tf-validate:
