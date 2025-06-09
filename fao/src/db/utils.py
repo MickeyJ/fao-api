@@ -1,14 +1,17 @@
 import pandas as pd
 import zipfile, hashlib
 from pathlib import Path
+import os, sys
+from dotenv import load_dotenv
 
+load_dotenv(override=True)
 
-SMALL_ZIP_EXAMPLE = r"C:\Users\18057\Documents\Data\fao-test-zips\small"
-MEDIUM_ZIP_EXAMPLE = r"C:\Users\18057\Documents\Data\fao-test-zips\medium"
-LARGE_ZIP_EXAMPLE = r"C:\Users\18057\Documents\Data\fao-test-zips\large"
-ALL_ZIP_EXAMPLE = r"C:\Users\18057\Documents\Data\fao-test-zips\all"
+FAO_ZIP_PATH = os.getenv("FAO_ZIP_PATH")
+API_OUTPUT_PATH = os.getenv("FAO_API_OUTPUT_PATH")
 
-ZIP_PATH = ALL_ZIP_EXAMPLE
+if not FAO_ZIP_PATH or not API_OUTPUT_PATH:
+    print("❌ Error: FAO_ZIP_PATH and FAO_API_OUTPUT_PATH must be set in .env file")
+    sys.exit(1)
 
 def calculate_optimal_chunk_size(df: pd.DataFrame, base_chunk_size: int = 10000) -> int:
     """
@@ -72,7 +75,7 @@ def generate_numeric_id(row_data: dict, hash_columns: list[str]) -> int:
 
 def get_csv_path_for(csv_path):
     """Get CSV path, extracting from ZIP if necessary"""
-    full_path = Path(ZIP_PATH) / csv_path
+    full_path = Path(FAO_ZIP_PATH) / csv_path
 
     if full_path.exists():
         return str(full_path)
@@ -81,10 +84,10 @@ def get_csv_path_for(csv_path):
     parts = Path(csv_path).parts
     if len(parts) >= 2:
         zip_name = parts[0] + ".zip"  # e.g., "Prices_E_All_Data_(Normalized).zip"
-        zip_path = Path(ZIP_PATH) / zip_name
+        zip_path = Path(FAO_ZIP_PATH) / zip_name
 
         if zip_path.exists():
-            extract_dir = Path(ZIP_PATH) / parts[0]
+            extract_dir = Path(FAO_ZIP_PATH) / parts[0]
             extract_dir.mkdir(exist_ok=True)
 
             with zipfile.ZipFile(zip_path, "r") as zf:
