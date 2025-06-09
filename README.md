@@ -1,141 +1,220 @@
-> [!WARNING]
-> # 🚧 WORK IN PROGRESS 🚧
-> This project is under active development and not yet complete. Features may be missing or partially implemented, and documentation may be incomplete. Use at your own risk.
+# FAO API Codebase Generator
+
+A Python tool for automatically generating data pipeline code from FAO (Food and Agriculture Organization) ZIP datasets. This generator scans FAO data archives and creates standardized ETL pipeline modules with database integration.
+
+## Features
+
+- **Automatic Pipeline Generation**: Scans FAO ZIP files and generates complete Python pipeline modules
+- **Template-Based Code Generation**: Uses Jinja2 templates for consistent code structure
+- **Core Table Management**: Automatically identifies and separates core/shared tables (areas, items, currencies)
+- **Currency Standardization**: Built-in support for M49 country code to currency mapping
+- **Database Integration**: Generated code includes SQLAlchemy ORM models and PostgreSQL bulk insert operations
+- **Modular Architecture**: Each dataset becomes a self-contained pipeline module
+
+*https://bulks-faostat.fao.org/production/datasets_E.json*
+
+## Project Structure
+
+```
+ETL-codebase-generator/
+├── requirements.txt          # Python dependencies
+├── Makefile                  # Build and setup commands
+├── generator/                 # Core generation logic
+│   ├── __init__.py           # Configuration (ZIP_PATH)
+│   ├── template_renderer.py  # Jinja2 template rendering
+│   └── generator.py          # Pipeline code generator
+├── templates/                # Jinja2 templates
+│   ├── __init__.py.jinja2    # Pipeline initialization
+│   ├── __main__.py.jinja2    # Pipeline execution entry point
+│   ├── model.py.jinja2      # Individual module template
+│   └── __init___empty.py.jinja2  # Empty init template
+│ 
+│ # Generated Codebase
+├── fao/ 
+├── all_model_imports.py
+│   └──src/
+│      └── db/
+│          ├── __init__.py
+│          ├── utils.py
+│          ├── database.py
+│          └── pipelines/ 
+│              ├── __main__.py
+│              └── area_codes/
+│                  ├── __init__.py
+│                  ├── __main__.py
+│                  ├── area_codes_model.py
+│                  └── area_codes.py
+│              └── emissions_totals/
+│                  ├── __init__.py
+│                  ├── __main__.py
+│                  ├── emissions_totals_model.py
+│                  └── emissions_totals.py
+│              └── ...
+│      └── api/
+│          ├── __main__.py
+│          ├── __init__.py
+│          └── routers/ 
+│              ├── __main__.py
+│              └── core/
+│                  └── area_codes.py
+│              └── emissions_totals/
+│                  └── emissions_totals.py
 
 
-# Food Data ETL for Data Analysis + Dietary Intelligence
-
-**Description:**  
-ETL codebase for food data analysis and dietary intelligence, with pipelines for structured ingestion of global food price and nutrition data.
-
----
-
-## 📦 Project Overview
-
-This project builds a PostgreSQL-based backend system to organize, query, and analyze:
-
-- 🥦 Food commodities and items (FAO CPC codes)  
-- 🌍 Area codes and regions (M49 and FAO Area codes)  
-- 💰 Item price data by country and year  
-- 📈 Consumer food price indices (CPI) and inflation metrics  
-
-It uses official FAO bulk datasets and is designed to scale into deeper layers of nutrition, local pricing, and meal intelligence.
-
----
-
-## 🗂️ Project Structure
-
-```yaml
-app/
-├── models/               # SQLAlchemy models (Item, Area, Price, Index, etc.)
-├── database.py           # DB connection, session, metadata setup
-
-pipelines/
-└── fao_prices_e/         # FAO Prices_E data processing
-    ├── items.py          # Ingests Items from Prices_E_ItemCodes.csv
-    ├── areas.py          # Ingests Areas from Prices_E_AreaCodes.csv
-    ├── item_prices.py    # Ingests Prices_E_All_Data_(Normalized).csv
-    └── __init__.py       # Utilities or shared logic
 ```
 
-Each module contains:  
-- `load()`: Load data from local/S3 CSV file
-- `clean()`: Clean and standardize inputs
-- `insert()`: Commit to the database  
+## Installation
 
----
+### Prerequisites
+- Python 3.10+
+- pip-tools
 
-## ⚙️ Setup
+### Setup
 
-### 0. Makefile?
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd fao-api-codebase-generator
+   ```
 
-See Makefile for commands. Examples:
+2. Initialize the environment:
+   ```bash
+   make initialize
+   ```
+
+   This will:
+   - Install pip-tools
+   - Compile requirements from `requirements.in`
+   - Install all dependencies
+
+3. Configure the ZIP path in [`generator/__init__.py`](generator/__init__.py):
+   ```python
+   ZIP_PATH = r"C:\path\to\your\fao\zip\files"
+   ```
+
+## Usage
+
+### Scanning FAO ZIP Files
+
+Use the [`FAOZipScanner`](generator/scanner.py) to analyze available datasets:
+
+```python
+from generator.scanner import FAOZipScanner
+
+scanner = FAOZipScanner("/path/to/fao/zips")
+results = scanner.scan_all_zips()
+
+for result in results:
+    print(f"Pipeline: {result['pipeline_name']}")
+    print(f"CSV files: {result['csv_files']}")
+```
+
+### Generating Pipeline Code
+
+Use the [`PipelineGenerator`](generator/generator.py) to create complete pipeline modules:
+
+```python
+from generator.scanner import FAOZipScanner
+from generator.generator import PipelineGenerator
+
+# Scan and generate all pipelines
+scanner = FAOZipScanner("/path/to/fao/zips")
+generator = PipelineGenerator()
+
+zip_info = scanner.scan_all_zips()
+generator.generate_all_pipelines(zip_info)
+```
+
+### Running Generated Pipelines
+
+Each generated pipeline is a complete Python module:
+
+```python
+# Run individual pipeline
+python -m db.pipelines.prices
+
+# Run specific module
+python -m db.pipelines.prices.prices
+```
+
+## Generated Code Structure
+
+Each pipeline includes:
+
+### `__init__.py`
+- CSV directory configuration
+- Utility functions like [`get_csv_path_for`](db/pipelines/prices/__init__.py)
+- Currency standardization functions (when applicable)
+
+### `__main__.py`
+- Pipeline execution entry point
+- Orchestrates all modules in the pipeline
+
+### Module files (e.g., `prices.py`)
+- **`load()`**: Loads CSV data using [`load_csv`](templates/module.py.jinja2)
+- **`clean()`**: Data validation and cleaning
+- **`insert()`**: Database insertion with conflict handling
+- **`run()`**: Complete ETL workflow
+
+## Templates
+
+The generator uses Jinja2 templates in the [`templates/`](templates/) directory:
+
+- [`__init__.py.jinja2`](templates/__init__.py.jinja2): Pipeline initialization with optional currency standardization
+- [`__main__.py.jinja2`](templates/__main__.py.jinja2): Main execution script
+- [`module.py.jinja2`](templates/module.py.jinja2): Individual data processing modules
+
+## Dependencies
+
+Core dependencies (see [`requirements.in`](requirements.in)):
+- **pandas**: Data processing and CSV handling
+- **jinja2**: Template engine for code generation
+- **click**: Command-line interface utilities
+- **rich**: Enhanced terminal output
+- **black**: Code formatting
+
+## Development
+
+### Adding New Templates
+
+1. Create a new `.jinja2` file in [`templates/`](templates/)
+2. Update [`PipelineGenerator.template_file_names`](generator/generator.py) if needed
+3. Modify generation logic in [`generator.py`](generator/generator.py)
+
+### Modifying Generation Logic
+
+Key methods in [`PipelineGenerator`](generator/generator.py):
+- [`_is_core_table()`](generator/generator.py): Identifies core/shared tables
+- [`_extract_module_name()`](generator/generator.py): Extracts module names from CSV filenames
+- [`_to_snake_case()`](generator/generator.py): Converts names to Python conventions
+
+### Build Commands
+
 ```bash
-make use-local-db
-make db-upgrade
-make db-revision msg='add foreign keys 🔀'
+# Update dependencies
+make requirements
+
+# Install dependencies only
+make install
+
+# Full initialization
+make initialize
 ```
 
-### 1. Install dependencies
+## FAO Dataset Support
 
-```bash
-make initialize # install using pip-tools
-```
+The generator supports standard FAO dataset patterns:
+- `*_E_All_Data_(Normalized).csv` - Main data files
+- `*_E_AreaCodes.csv` - Area/country codes
+- `*_E_ItemCodes.csv` - Item/commodity codes
+- `*_E_Currencys.csv` - Currency codes
+- `*_E_Elements.csv` - Data element definitions
+- `*_E_Flags.csv` - Data flag definitions
 
-### 2. Create Database
+## License
 
-```sql
-CREATE DATABASE fooddb; 
--- depending on the user in your config file,
--- and if using the default public schema,
--- you might need to run this
-GRANT USAGE, CREATE ON SCHEMA public TO mynameis;
-```
+[Add your license information here]
 
-### 3. Configure environment variables 👁️‍🗨️
+## Contributing
 
-Create a `.env` file in the root:
-*If you know me and actually want to play with this I can share the AWS db info*
-```bash
-DB_USER=mynameis
-DB_PASSWORD=mypwis
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=fooddb
-```
-
-### 4. Run Database Migrations
-
-```bash
-alembic upgrade head
-alembic revision --autogenerate -m 'add nutrients table'
-# OR
-make db-upgrade
-make db-revision msg='add nutrients table'
-```
-
-### 5. Populate the database
-*there are also make commands*
-```bash
-python -m pipelines.fao_prices_e                # Run entire prices pipeline
-python -m pipelines.fao_prices_e.items          # Run individual module
-python -m pipelines.fao_prices_e.areas          # ***
-python -m pipelines.fao_prices_e.item_prices    # ***
-# (other pipelines in progress)
-```
-
-### 6. Play with the API
-
-```bash
-make api
-```
-
-### 7. Terraform own AWS Aurora db (very super optional)
-*requires a good deal of other setup I won't get into here*
-```bash
-cd terraform
-terraform init
-terraform validate
-terraform plan
-terraform apply
-```
----
-
-## 📊 Data Sources
-- https://www.fao.org/faostat/en/         — Bulk availble download here
-- https://www.fao.org/faostat/en/#data/PP — FAO Price Statistics  
-- https://www.fao.org/faostat/en/#data/CP — FAO Consumer Price Indices  
----
-
-## 🧠 Goals & Future Plans
-
-- [x] Normalize FAO food price data  
-- [x] Support schema-aware ingestion  
-- [x] Set up remote database  
-- [x] Start building an API  
-- [ ] Integrate USDA nutrient data  
-- [ ] Add local consumer price scraping  
-- [ ] Enable dietary pattern and meal planning intelligence  
-
----
-
+[Add contribution guidelines here]

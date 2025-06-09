@@ -96,3 +96,4 @@ Thumbs.db
 
 # one off files
 reports/
+*/.generator_cache/*

@@ -18,10 +18,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy your application code
-COPY db/ ./db/
-COPY api/ ./api/
+COPY fao/ ./fao/
 COPY alembic.ini .
-COPY db_migrations/ ./db_migrations/
+COPY migrations/ ./migrations/
 
 # Create a non-root user for security
 RUN useradd --create-home --shell /bin/bash app
@@ -36,5 +35,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Start the FastAPI application
 # App Runner sets PORT environment variable, but FastAPI defaults to 8000
-CMD uvicorn api.__main__:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD uvicorn fao.src.api.__main__:app --host 0.0.0.0 --port ${PORT:-8000}
 

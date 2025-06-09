@@ -1,32 +1,119 @@
-.PHONY: initialize requirements install api \
-        use-sb-db use-local-db \
-        db-upgrade db-revision reset-db setup-db \
-        load-items load-areas load-prices load-fao_prices_e \
-        verify-data db-status \
-        analyze-anomalies \
-				tf-fmt tf-validate tf-plan tf-apply \
-        full-setup shell clean
+include .env
+export
 
-# Installation and setup
+# =-=-=--=-=-=-=-=-=-=
+#   Environment Setup
+# =-=-=--=-=-=-=-=-=-=
+
+# Check for environment and set activation command
+ifdef VIRTUAL_ENV
+    # Already in a virtual environment
+    ACTIVATE = @echo "venv - $(VIRTUAL_ENV)" &&
+    PYTHON = python
+else ifdef CONDA_DEFAULT_ENV
+    # Already in conda environment  
+    ACTIVATE = @echo "conda - $(CONDA_DEFAULT_ENV)" &&
+    PYTHON = python
+else ifeq ($(wildcard venv/Scripts/activate),venv/Scripts/activate)
+    # Windows venv available
+    ACTIVATE = @venv\Scripts\activate &&
+    PYTHON = python
+else ifeq ($(wildcard venv/bin/activate),venv/bin/activate)
+    # Unix venv available
+    ACTIVATE = @source venv/bin/activate &&
+    PYTHON = python3
+else
+    # No environment found
+    ACTIVATE = @echo "❌ No environment found. Run 'make venv' or activate conda." && exit 1 &&
+    PYTHON = python
+endif
+
+.PHONY: \
+	venv env-status \
+	initialize requirements install \
+	generator pre-test process-aquastat process-csv \
+	run-all-pipelines \
+	use-remote-db use-local-db db-init db-upgrade db-revision  \
+	create-test-db drop-test-db create-test-db drop-test-db reset-test-db reset-db \
+	show-all-tables clear-all-tables rm-codebase reset-and-test pipe-reset-and-test \
+	run-pipelines \
+	api \
+	tf-fmt tf-validate tf-plan tf-apply
+
+# =-=-=--=-=-=-=-=-=-=
+#  Python Environment
+# =-=-=--=-=-=-=-=-=-=
+venv:
+	@$(PYTHON) -m venv venv
+	@echo "✅ Virtual environment created. Activate with:"
+	@echo "   source venv/bin/activate  (macOS/Linux)"
+	@echo "   venv\\Scripts\\activate     (Windows)"
+
+env-status:
+	@echo "=== Environment Status ==="
+	$(ACTIVATE) echo "Python: $$(which $(PYTHON))"
+
+# =-=-=--=-=-=-=-=-=-=
+# Package Installation
+# =-=-=--=-=-=-=-=-=-=
 initialize:
-	pip install pip-tools
-	python -m piptools compile requirements.in
-	pip install -r requirements.txt
+	$(ACTIVATE) $(PYTHON) -m pip install pip-tools
+	$(ACTIVATE) $(PYTHON) -m piptools compile requirements.in
+	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
 
 requirements:
-	python -m piptools compile requirements.in
+	$(ACTIVATE) $(PYTHON) -m piptools compile requirements.in
+	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
 
 install:
-	pip install -r requirements.txt
+	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
 
-# Database environment
-use-sb-db:
-	cp sb.env .env
-	@echo "Switched to AWS database"
+# =-=-=--=-=-=-=-=-=
+# Generator commands
+# =-=-=--=-=-=-=-=-=
+generate:
+	@echo "Generating code..."
+	$(ACTIVATE) $(PYTHON) -m generator --all
+
+pre-test:
+	@echo "Generating code..."
+	$(ACTIVATE) $(PYTHON) -m generator --pre_test
+
+process-aquastat:
+	@echo "Generating code..."
+	$(ACTIVATE) $(PYTHON) -m generator.aquastat_pre_processor "C:\Users\18057\Documents\Data\fao-test-zips\all\AQUASTAT\bulk_eng(in).csv"
+
+process-csv:
+	@echo "Generating code..."
+	$(ACTIVATE) $(PYTHON) -m generator --process_csv
+
+
+
+# =-=-=--=-=-=-=-=-
+# Pipeline commands
+# =-=-=--=-=-=-=-=-
+run-all-pipelines:
+	@echo "Running pipeline..."
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.pipelines
+
+# =-=-=--=-=-=-=-=-
+# Database commands
+# =-=-=--=-=-=-=-=-
+use-remote-db:
+	cp remote.env .env
+	@echo "Switched to remote database"
 
 use-local-db:
 	cp local.env .env
 	@echo "Switched to local database"
+
+use-local-db-admin:
+	cp local-admin.env .env
+	@echo "Switched to local database as admin"
+
+db-init:
+	@echo "Initialize Alembic"
+	alembic init migrations
 
 db-upgrade:
 	@echo "Upgrading database..."
@@ -34,52 +121,60 @@ db-upgrade:
 
 db-revision:
 	@echo "Upgrading database..."
-	alembic revision --autogenerate -m "${message}" 
+	alembic revision --autogenerate -m "${msg}" 
 
-# Database management
+create-db:
+	make use-local-db-admin
+	@echo "Creating database..."
+	$(MAKE) create-test-db
+	@echo "Database created with permissions"
+
+create-test-db:
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/postgres" -f sql/create_database.sql
+	make use-local-db
+
+drop-db:
+	make use-local-db-admin
+	@echo "Dropping database..."
+	$(MAKE) drop-test-db
+	@echo "Database 'fao' dropped"
+	make use-local-db
+
+drop-test-db:
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/postgres" -c "DROP DATABASE IF EXISTS fao;"
+	make use-local-db
+
+reset-test-db: drop-test-db create-test-db
+	@echo "Test database reset complete"
+
 reset-db:
 	@echo "Resetting database..."
-	psql "$$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/drop_tables.sql
 	@echo "Database reset complete"
 
-setup-db:
-	@echo "Setting up database and loading data..."
-	python database_setup_workflow.py
+show-all-tables:
+	@echo "Showing all tables in the database..."
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/select_all_tables.sql
 
-load-items:
-	@echo "Loading items..."
-	python -m db.pipelines.fao_prices_e.items
+clear-all-tables:
+	@echo "Showing all tables in the database..."
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/clear_all_tables.sql
 
-load-areas:
-	@echo "Loading areas..."
-	python -m db.pipelines.fao_prices_e.areas
+rm-codebase:
+	@echo "Removing generated code and cache..."
+	rm -rf fao \
+	analysis/csv_analysis_cache.json \
+	analysis/pipeline_spec.json
 
-load-prices:
-	@echo "Loading item prices..."
-	python -m db.pipelines.fao_prices_e.item_prices
+db-reset-and-test: clear-all-tables rm-codebase generate
+pipe-reset-and-test: rm-codebase generate
 
-load-fao_prices_e:
-	@echo "Loading all data..."
-	python -m db.pipelines.fao_prices_e
+run-pipelines:
+	@echo "Running all pipelines..."
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.pipelines
 
-verify-data:
-	@echo "Verifying data..."
-	psql "$$DATABASE_URL" -f db/sql/select_all_tables.sql
-	psql "$$DATABASE_URL" -c "SELECT 'Items:' as table_name, count(*) as row_count FROM items UNION ALL SELECT 'Areas:', count(*) FROM areas UNION ALL SELECT 'Item Prices:', count(*) FROM item_prices;"
-
-db-status:
-	@echo "Database status:"
-	@echo "Environment: $$(grep DB_HOST .env 2>/dev/null || echo 'No .env file found')"
-	@psql "$$DATABASE_URL" -c "SELECT 'Connection: OK' as status;" 2>/dev/null || echo "Database connection failed"
-
-# Application
 api:
-	python -m api
-
-# Data Quality Analysis
-analyze-anomalies:
-	@echo "🚨 Running price anomaly detection..."
-	python -m db.analysis
+	$(ACTIVATE) $(PYTHON) -m fao.src.api
 
 tf-fmt:
 	terraform -chdir=./terraform fmt
@@ -89,15 +184,3 @@ tf-plan:
 	terraform -chdir=./terraform plan
 tf-apply:
 	terraform -chdir=./terraform apply
-
-# Complete workflow
-full-setup: use-local-db reset-db setup-db
-	@echo "Complete setup finished! Run 'make api' to start the server."
-
-# Development helpers
-shell:
-	python -c "from db.database import SessionLocal; from db.models import *; session = SessionLocal(); print('Database shell ready. Use session, Item, Area, ItemPrice, etc.')"
-
-clean:
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -delete
