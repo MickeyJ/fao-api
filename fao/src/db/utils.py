@@ -9,34 +9,32 @@ load_dotenv(override=True)
 FAO_ZIP_PATH = os.getenv("FAO_ZIP_PATH")
 API_OUTPUT_PATH = os.getenv("FAO_API_OUTPUT_PATH")
 
-if not FAO_ZIP_PATH or not API_OUTPUT_PATH:
-    print("❌ Error: FAO_ZIP_PATH and FAO_API_OUTPUT_PATH must be set in .env file")
-    sys.exit(1)
 
 def calculate_optimal_chunk_size(df: pd.DataFrame, base_chunk_size: int = 10000) -> int:
     """
     Calculate optimal chunk size based on number of columns and PostgreSQL limits.
-    
+
     PostgreSQL has a 65,535 parameter limit per statement.
     Each row uses (number of columns) parameters.
     """
     num_columns = len(df.columns)
-    
+
     # PostgreSQL's parameter limit with safety margin
     max_params = 60000  # Leave some headroom from 65,535 limit
-    
+
     # Calculate max rows that fit within parameter limit
     max_rows_by_params = max_params // num_columns
-    
+
     # Set reasonable bounds
-    min_chunk = 1000    # Don't go below this for efficiency
-    max_chunk = 50000   # Cap at 50k for memory/timeout safety
-    
+    min_chunk = 1000  # Don't go below this for efficiency
+    max_chunk = 50000  # Cap at 50k for memory/timeout safety
+
     # Use the smaller of: parameter limit, memory limit, or base preference
     optimal_chunk = min(max_rows_by_params, base_chunk_size, max_chunk)
     optimal_chunk = max(optimal_chunk, min_chunk)  # Ensure minimum
-    
+
     return optimal_chunk
+
 
 def safe_index_name(table_name, column_name):
     # Always fits in 63 chars: ix_ + 8 hash chars + _ + column (max 50)
@@ -44,31 +42,32 @@ def safe_index_name(table_name, column_name):
     col_part = column_name[:50]  # Ensure total < 63
     return f"{table_hash}_{col_part}"
 
+
 def generate_numeric_id(row_data: dict, hash_columns: list[str]) -> int:
     """Generate deterministic numeric ID from specified columns
-    
+
     Args:
         row_data: Dictionary containing the row data
         hash_columns: List of column names to include in hash
-        
+
     Returns:
         Positive integer suitable for database ID
     """
     # Extract values in consistent order
     values = []
     for col in sorted(hash_columns):  # Sort for consistency
-        value = str(row_data.get(col, '')).strip()
+        value = str(row_data.get(col, "")).strip()
         values.append(value)
-    
+
     # Create hash string
-    content = '|'.join(values)
-    
+    content = "|".join(values)
+
     # Generate hash
-    hash_bytes = hashlib.md5(content.encode('utf-8')).digest()
-    
+    hash_bytes = hashlib.md5(content.encode("utf-8")).digest()
+
     # Convert to positive integer (PostgreSQL INTEGER max is 2147483647)
-    numeric_id = int.from_bytes(hash_bytes[:8], byteorder='big')
-    
+    numeric_id = int.from_bytes(hash_bytes[:8], byteorder="big")
+
     # Ensure it fits in PostgreSQL INTEGER type
     return numeric_id % 2147483647
 
@@ -138,7 +137,7 @@ def load_csv(csv_path) -> pd.DataFrame:
 
         df.columns = df.columns.str.strip()
         print(df.shape)
-       
+
     except FileNotFoundError as e:
         print(f"File not found: {csv_path}")
         raise e
