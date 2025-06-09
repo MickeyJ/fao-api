@@ -10,6 +10,31 @@ ALL_ZIP_EXAMPLE = r"C:\Users\18057\Documents\Data\fao-test-zips\all"
 
 ZIP_PATH = ALL_ZIP_EXAMPLE
 
+def calculate_optimal_chunk_size(df: pd.DataFrame, base_chunk_size: int = 10000) -> int:
+    """
+    Calculate optimal chunk size based on number of columns and PostgreSQL limits.
+    
+    PostgreSQL has a 65,535 parameter limit per statement.
+    Each row uses (number of columns) parameters.
+    """
+    num_columns = len(df.columns)
+    
+    # PostgreSQL's parameter limit with safety margin
+    max_params = 60000  # Leave some headroom from 65,535 limit
+    
+    # Calculate max rows that fit within parameter limit
+    max_rows_by_params = max_params // num_columns
+    
+    # Set reasonable bounds
+    min_chunk = 1000    # Don't go below this for efficiency
+    max_chunk = 50000   # Cap at 50k for memory/timeout safety
+    
+    # Use the smaller of: parameter limit, memory limit, or base preference
+    optimal_chunk = min(max_rows_by_params, base_chunk_size, max_chunk)
+    optimal_chunk = max(optimal_chunk, min_chunk)  # Ensure minimum
+    
+    return optimal_chunk
+
 def safe_index_name(table_name, column_name):
     # Always fits in 63 chars: ix_ + 8 hash chars + _ + column (max 50)
     table_hash = hashlib.md5(table_name.encode()).hexdigest()[:8]

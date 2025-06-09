@@ -2,7 +2,7 @@
 import pandas as pd
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from fao.src.db.utils import load_csv, get_csv_path_for, generate_numeric_id
+from fao.src.db.utils import load_csv, get_csv_path_for, generate_numeric_id, calculate_optimal_chunk_size
 from fao.src.db.database import run_with_session
 from .commodity_balances_non_food_2013_old_methodology_model import CommodityBalancesNonFood2013OldMethodology
 
@@ -10,7 +10,6 @@ from .commodity_balances_non_food_2013_old_methodology_model import CommodityBal
 CSV_PATH = get_csv_path_for("CommodityBalances_(non-food)_(-2013_old_methodology)_E_All_Data_(Normalized)/CommodityBalances_(non-food)_(-2013_old_methodology)_E_All_Data_(Normalized).csv")
 
 table_name = "commodity_balances_non_food_2013_old_methodology"
-CHUNK_SIZE = 10000  # Process in chunks for large datasets
 
 
 def load():
@@ -106,15 +105,19 @@ def insert(df: pd.DataFrame, session: Session):
     if df.empty:
         print(f"No {table_name} data to insert.")
         return
-    
-    print(f"\nInserting {table_name} data ({len(df):,} rows)...")
+
+
+    # Calculate optimal chunk size for this dataset
+    chunk_size = calculate_optimal_chunk_size(df, base_chunk_size=20000)
+    print(f"\nInserting {table_name} data ({len(df):,} rows)")
+    print(f"  Using dynamic chunk size: {chunk_size:,} rows (based on {len(df.columns)} columns)")
     
     total_rows = len(df)
     total_inserted = 0
     
     # Process in chunks
-    for chunk_idx, start_idx in enumerate(range(0, total_rows, CHUNK_SIZE)):
-        end_idx = min(start_idx + CHUNK_SIZE, total_rows)
+    for chunk_idx, start_idx in enumerate(range(0, total_rows, chunk_size)):
+        end_idx = min(start_idx + chunk_size, total_rows)
         chunk_df = df.iloc[start_idx:end_idx]
         
         records = []
