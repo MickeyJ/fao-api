@@ -8,7 +8,7 @@ from ..database import run_with_session
 
 
 class BaseETL(ABC):
-    """Base class for all ETL pipelines"""
+    """ Base class for all ETL pipelines """
 
     def __init__(self, csv_path: str, model_class: Type, table_name: str):
         self.csv_path = csv_path
@@ -37,7 +37,7 @@ class BaseETL(ABC):
 
 
 class BaseLookupETL(BaseETL):
-    """Base class for reference table ETL pipelines"""
+    """ Base class for reference table ETL pipelines """
 
     def __init__(self, csv_path: str, model_class: Type, table_name: str, hash_columns: List[str], pk_column: str):
         super().__init__(csv_path, model_class, table_name)
@@ -101,7 +101,7 @@ class BaseLookupETL(BaseETL):
 
 
 class BaseDatasetETL(BaseETL):
-    """Base class for dataset ETL pipelines"""
+    """ Base class for dataset ETL pipelines """
 
     def __init__(
         self,
@@ -168,7 +168,7 @@ class BaseDatasetETL(BaseETL):
             print(f"No {self.table_name} data to insert.")
             return
 
-        chunk_size = calculate_optimal_chunk_size(df, base_chunk_size=20000)
+        chunk_size = calculate_optimal_chunk_size(df, base_chunk_size=40000)
         print(f"\nInserting {self.table_name} data ({len(df):,} rows)")
         print(f"  Using dynamic chunk size: {chunk_size:,} rows (based on {len(df.columns)} columns)")
 

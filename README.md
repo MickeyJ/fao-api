@@ -37,7 +37,7 @@ The FAO Data API provides programmatic access to agricultural and food security 
 ## Technology Stack
 
 - **API Framework**: FastAPI (Python 3.10)
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL (Supabase)
 - **ORM**: SQLAlchemy 2.0
 - **Deployment**: AWS App Runner
 - **ETL**: Custom Python pipelines with pandas

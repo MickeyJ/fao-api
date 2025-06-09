@@ -22,7 +22,7 @@ class Currencies(Base):
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
     
-    # Composite indexes for lookup tables
+    # Composite indexes for reference tables
     __table_args__ = (
         Index("ix_currenci_iso_curr_src", 'iso_currency_code', 'source_dataset', unique=True),
     )

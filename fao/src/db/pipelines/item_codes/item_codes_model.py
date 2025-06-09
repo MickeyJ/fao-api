@@ -25,7 +25,7 @@ class ItemCodes(Base):
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
     
-    # Composite indexes for lookup tables
+    # Composite indexes for reference tables
     __table_args__ = (
         Index("ix_item_cod_item_cod_src", 'item_code', 'source_dataset', unique=True),
     )

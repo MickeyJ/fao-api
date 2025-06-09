@@ -4,7 +4,7 @@ from sqlalchemy import select, func, or_, text
 from typing import Optional
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.forestry_pulp_paper_survey.forestry_pulp_paper_survey_model import ForestryPulpPaperSurvey
-# Import core/lookup tables for joins
+# Import core/reference tables for joins
 from fao.src.db.pipelines.area_codes.area_codes_model import AreaCodes
 from fao.src.db.pipelines.item_codes.item_codes_model import ItemCodes
 from fao.src.db.pipelines.elements.elements_model import Elements

@@ -4,7 +4,7 @@ from sqlalchemy import select, func, or_, text
 from typing import Optional
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.fertilizers_detailed_trade_matrix.fertilizers_detailed_trade_matrix_model import FertilizersDetailedTradeMatrix
-# Import core/lookup tables for joins
+# Import core/reference tables for joins
 from fao.src.db.pipelines.item_codes.item_codes_model import ItemCodes
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.flags.flags_model import Flags

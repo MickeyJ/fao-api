@@ -1,94 +1,50 @@
 import pandas as pd
-from sqlalchemy.orm import Session
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from fao.src.db.utils import load_csv, get_csv_path_for, generate_numeric_id
+from fao.src.db.utils import get_csv_path_for
 from fao.src.db.database import run_with_session
+from fao.src.db.pipelines.base import BaseLookupETL
 from .flags_model import Flags
 
 
-# Direct path to synthetic lookup CSV
-CSV_PATH = get_csv_path_for("synthetic_lookups/flags.csv")
-
-table_name = "flags"
-
-
-def load():
-    """Load the lookup CSV file"""
-    return load_csv(CSV_PATH)
-
-
-def clean(df: pd.DataFrame) -> pd.DataFrame:
-    """Clean and prepare lookup data"""
-    if df.empty:
-        print(f"No {table_name} data to clean.")
-        return df
-
-    print(f"\nCleaning {table_name} data...")
-    initial_count = len(df)
-
-    # Replace 'nan' strings with None for ALL columns
-    df = df.replace({'nan': None, 'NaN': None, 'NAN': None})
+class FlagsETL(BaseLookupETL):
+    """ETL pipeline for flags reference data"""
     
-    # Basic column cleanup
-    df['Flag'] = df['Flag'].astype(str).str.strip().str.replace("'", "")
-    df['Flag'] = df['Flag'].str.upper()
-    # Keep primary key as string
-    df['Description'] = df['Description'].astype(str).str.strip().str.replace("'", "")
-    df['source_dataset'] = df['source_dataset'].astype(str).str.strip().str.replace("'", "")
+    def __init__(self):
+        super().__init__(
+            csv_path=get_csv_path_for("synthetic_references/flags.csv"),
+            model_class=Flags,
+            table_name="flags",
+            hash_columns=["Flag"],
+            pk_column="Flag"
+        )
     
-   
-    # Remove any remaining duplicates (shouldn't be any after PK updates)
-    df = df.drop_duplicates(subset=['Flag'], keep='first')
-    
-    # Drop any rows with null PKs
-    df = df.dropna(subset=['Flag'])
-    
-    final_count = len(df)
-    print(f"  Cleaned: {initial_count} → {final_count} rows")
-    return df
-
-
-def insert(df: pd.DataFrame, session: Session):
-    """Insert lookup data - simple bulk insert since conflicts are already resolved"""
-    if df.empty:
-        print(f"No {table_name} data to insert.")
-        return
-    
-    print(f"\nInserting {table_name} data...")
-    
-    records = []
-    for _, row in df.iterrows():
-        record = {}
+    def clean(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Reference-specific cleaning"""
+        # Common cleaning first
+        df = self.base_clean(df)
         
-        # Generate hash ID from configured columns
-        hash_columns = ["Flag"]
-        record['id'] = generate_numeric_id(row.to_dict(), hash_columns)
+        # Column-specific cleaning
+        df['Flag'] = df['Flag'].astype(str).str.strip().str.replace("'", "")
+        df['Flag'] = df['Flag'].str.upper()
+        df['Description'] = df['Description'].astype(str).str.strip().str.replace("'", "")
+        df['source_dataset'] = df['source_dataset'].astype(str).str.strip().str.replace("'", "")
+        
+        return df
+    
+    def build_record(self, row: pd.Series) -> dict:
+        """Build record for insertion"""
+        record = {}
         record['flag'] = row['Flag']
         record['description'] = row['Description']
         record['source_dataset'] = row['source_dataset']
-        records.append(record)
-    
-    if records:
-        try:
-            stmt = pg_insert(Flags).values(records)
-            stmt = stmt.on_conflict_do_nothing()
-            result = session.execute(stmt)
-            session.commit()
-            print(f"  ✅ Inserted {result.rowcount} rows")
-        except Exception as e:
-            print(f"  ❌ Error during bulk insert: {e}")
-            session.rollback()
-            raise
-    
-    print(f"✅ {table_name} insert complete")
+        return record
 
 
-def run(db):
-    """Run the complete ETL pipeline for this lookup table"""
-    df = load()
-    df = clean(df)
-    insert(df, db)
-
+# Module-level functions for backwards compatibility
+etl = FlagsETL()
+load = etl.load
+clean = etl.clean
+insert = etl.insert
+run = etl.run
 
 if __name__ == "__main__":
     run_with_session(run)

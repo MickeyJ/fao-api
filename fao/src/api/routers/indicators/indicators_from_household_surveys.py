@@ -4,7 +4,7 @@ from sqlalchemy import select, func, or_, text
 from typing import Optional
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.indicators_from_household_surveys.indicators_from_household_surveys_model import IndicatorsFromHouseholdSurveys
-# Import core/lookup tables for joins
+# Import core/reference tables for joins
 from fao.src.db.pipelines.surveys.surveys_model import Surveys
 from fao.src.db.pipelines.indicators.indicators_model import Indicators
 from fao.src.db.pipelines.elements.elements_model import Elements

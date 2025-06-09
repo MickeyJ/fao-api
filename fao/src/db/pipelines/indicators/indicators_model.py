@@ -22,7 +22,7 @@ class Indicators(Base):
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
     
-    # Composite indexes for lookup tables
+    # Composite indexes for reference tables
     __table_args__ = (
         Index("ix_indicato_indicato_src", 'indicator_code', 'source_dataset', unique=True),
     )

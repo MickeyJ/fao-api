@@ -4,7 +4,7 @@ from sqlalchemy import select, func, or_, text
 from typing import Optional
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.minimum_dietary_diversity_for_women_mdd_w_food_and_diet.minimum_dietary_diversity_for_women_mdd_w_food_and_diet_model import MinimumDietaryDiversityForWomenMddWFoodAndDiet
-# Import core/lookup tables for joins
+# Import core/reference tables for joins
 from fao.src.db.pipelines.surveys.surveys_model import Surveys
 from fao.src.db.pipelines.food_groups.food_groups_model import FoodGroups
 from fao.src.db.pipelines.indicators.indicators_model import Indicators

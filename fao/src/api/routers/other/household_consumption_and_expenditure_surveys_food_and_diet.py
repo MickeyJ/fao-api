@@ -4,7 +4,7 @@ from sqlalchemy import select, func, or_, text
 from typing import Optional
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.household_consumption_and_expenditure_surveys_food_and_diet.household_consumption_and_expenditure_surveys_food_and_diet_model import HouseholdConsumptionAndExpenditureSurveysFoodAndDiet
-# Import core/lookup tables for joins
+# Import core/reference tables for joins
 from fao.src.db.pipelines.surveys.surveys_model import Surveys
 from fao.src.db.pipelines.geographic_levels.geographic_levels_model import GeographicLevels
 from fao.src.db.pipelines.food_groups.food_groups_model import FoodGroups
