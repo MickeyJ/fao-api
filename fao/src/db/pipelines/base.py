@@ -26,7 +26,7 @@ class BaseETL(ABC):
 
     @abstractmethod
     def insert(self, df: pd.DataFrame, session: Session) -> None:
-        """Insert data - different for datasets vs lookups"""
+        """Insert data - different for datasets vs references"""
         pass
 
     def run(self, db: Session) -> None:
@@ -37,7 +37,7 @@ class BaseETL(ABC):
 
 
 class BaseLookupETL(BaseETL):
-    """Base class for lookup table ETL pipelines"""
+    """Base class for reference table ETL pipelines"""
 
     def __init__(self, csv_path: str, model_class: Type, table_name: str, hash_columns: List[str], pk_column: str):
         super().__init__(csv_path, model_class, table_name)
@@ -45,7 +45,7 @@ class BaseLookupETL(BaseETL):
         self.pk_column = pk_column
 
     def base_clean(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Common cleaning for all lookups"""
+        """Common cleaning for all references"""
         if df.empty:
             print(f"No {self.table_name} data to clean.")
             return df
@@ -67,7 +67,7 @@ class BaseLookupETL(BaseETL):
         return df
 
     def insert(self, df: pd.DataFrame, session: Session) -> None:
-        """Common insert logic for lookups"""
+        """Common insert logic for references"""
         if df.empty:
             print(f"No {self.table_name} data to insert.")
             return
@@ -138,7 +138,7 @@ class BaseDatasetETL(BaseETL):
         if self.foreign_keys:
             dataset_name = self.table_name
             for fk in self.foreign_keys:
-                df[fk["hash_fk_sql_column_name"]] = df[fk["lookup_pk_csv_column"]].apply(
+                df[fk["hash_fk_sql_column_name"]] = df[fk["reference_pk_csv_column"]].apply(
                     lambda val: (
                         generate_numeric_id(
                             {col: dataset_name if col == "source_dataset" else str(val) for col in fk["hash_columns"]},
