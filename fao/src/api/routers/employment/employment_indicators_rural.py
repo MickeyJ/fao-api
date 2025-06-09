@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
+from fao.src.core import settings
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.employment_indicators_rural.employment_indicators_rural_model import EmploymentIndicatorsRural
 # Import core/reference tables for joins
@@ -20,8 +21,8 @@ router = APIRouter(
 
 @router.get("/")
 def get_employment_indicators_rural(
-    limit: int = Query(100, le=1000, ge=1, description="Maximum records to return"),
-    offset: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(settings.default_limit, le=settings.max_limit, ge=1, description="Maximum records to return"),
+    offset: int = Query(settings.default_offset, ge=0, description="Number of records to skip"),
     area_code: Optional[str] = Query(None, description="Filter by area_codes code"),
     area: Optional[str] = Query(None, description="Filter by area_codes description"),
     source_code: Optional[str] = Query(None, description="Filter by sources code"),

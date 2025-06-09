@@ -1,11 +1,11 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .employment_indicators_agriculture import router as employment_indicators_agriculture
 from .employment_indicators_rural import router as employment_indicators_rural
 
 employment_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["employment"],
 )
 
@@ -26,12 +26,12 @@ employment_group_map = {
         {
             "name": "employment_indicators_agriculture",
             "description": "",
-            "path": f"/{ current_version_prefix }/employment/employment_indicators_agriculture",
+            "path": f"/{ settings.api_version_prefix }/employment/employment_indicators_agriculture",
         },
         {
             "name": "employment_indicators_rural",
             "description": "",
-            "path": f"/{ current_version_prefix }/employment/employment_indicators_rural",
+            "path": f"/{ settings.api_version_prefix }/employment/employment_indicators_rural",
         },
     ],
 }

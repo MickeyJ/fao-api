@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .environment_bioenergy import router as environment_bioenergy
 from .environment_cropland_nutrient_budget import router as environment_cropland_nutrient_budget
@@ -15,7 +15,7 @@ from .environment_soil_nutrient_budget import router as environment_soil_nutrien
 from .environment_temperature_change import router as environment_temperature_change
 
 environment_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["environment"],
 )
 
@@ -86,62 +86,62 @@ environment_group_map = {
         {
             "name": "environment_bioenergy",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_bioenergy",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_bioenergy",
         },
         {
             "name": "environment_cropland_nutrient_budget",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_cropland_nutrient_budget",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_cropland_nutrient_budget",
         },
         {
             "name": "environment_emissions_by_sector",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_emissions_by_sector",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_emissions_by_sector",
         },
         {
             "name": "environment_emissions_intensities",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_emissions_intensities",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_emissions_intensities",
         },
         {
             "name": "environment_food_waste_disposal",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_food_waste_disposal",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_food_waste_disposal",
         },
         {
             "name": "environment_land_cover",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_land_cover",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_land_cover",
         },
         {
             "name": "environment_land_use",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_land_use",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_land_use",
         },
         {
             "name": "environment_livestock_manure",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_livestock_manure",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_livestock_manure",
         },
         {
             "name": "environment_livestock_patterns",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_livestock_patterns",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_livestock_patterns",
         },
         {
             "name": "environment_pesticides",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_pesticides",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_pesticides",
         },
         {
             "name": "environment_soil_nutrient_budget",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_soil_nutrient_budget",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_soil_nutrient_budget",
         },
         {
             "name": "environment_temperature_change",
             "description": "",
-            "path": f"/{ current_version_prefix }/environment/environment_temperature_change",
+            "path": f"/{ settings.api_version_prefix }/environment/environment_temperature_change",
         },
     ],
 }

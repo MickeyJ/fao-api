@@ -1,11 +1,11 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .production_crops_livestock import router as production_crops_livestock
 from .production_indices import router as production_indices
 
 production_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["production"],
 )
 
@@ -26,12 +26,12 @@ production_group_map = {
         {
             "name": "production_crops_livestock",
             "description": "",
-            "path": f"/{ current_version_prefix }/production/production_crops_livestock",
+            "path": f"/{ settings.api_version_prefix }/production/production_crops_livestock",
         },
         {
             "name": "production_indices",
             "description": "",
-            "path": f"/{ current_version_prefix }/production/production_indices",
+            "path": f"/{ settings.api_version_prefix }/production/production_indices",
         },
     ],
 }

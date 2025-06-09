@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .emissions_agriculture_energy import router as emissions_agriculture_energy
 from .emissions_crops import router as emissions_crops
@@ -11,7 +11,7 @@ from .emissions_pre_post_production import router as emissions_pre_post_producti
 from .emissions_totals import router as emissions_totals
 
 emissions_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["emissions"],
 )
 
@@ -62,42 +62,42 @@ emissions_group_map = {
         {
             "name": "emissions_agriculture_energy",
             "description": "",
-            "path": f"/{ current_version_prefix }/emissions/emissions_agriculture_energy",
+            "path": f"/{ settings.api_version_prefix }/emissions/emissions_agriculture_energy",
         },
         {
             "name": "emissions_crops",
             "description": "",
-            "path": f"/{ current_version_prefix }/emissions/emissions_crops",
+            "path": f"/{ settings.api_version_prefix }/emissions/emissions_crops",
         },
         {
             "name": "emissions_drained_organic_soils",
             "description": "",
-            "path": f"/{ current_version_prefix }/emissions/emissions_drained_organic_soils",
+            "path": f"/{ settings.api_version_prefix }/emissions/emissions_drained_organic_soils",
         },
         {
             "name": "emissions_land_use_fires",
             "description": "",
-            "path": f"/{ current_version_prefix }/emissions/emissions_land_use_fires",
+            "path": f"/{ settings.api_version_prefix }/emissions/emissions_land_use_fires",
         },
         {
             "name": "emissions_land_use_forests",
             "description": "",
-            "path": f"/{ current_version_prefix }/emissions/emissions_land_use_forests",
+            "path": f"/{ settings.api_version_prefix }/emissions/emissions_land_use_forests",
         },
         {
             "name": "emissions_livestock",
             "description": "",
-            "path": f"/{ current_version_prefix }/emissions/emissions_livestock",
+            "path": f"/{ settings.api_version_prefix }/emissions/emissions_livestock",
         },
         {
             "name": "emissions_pre_post_production",
             "description": "",
-            "path": f"/{ current_version_prefix }/emissions/emissions_pre_post_production",
+            "path": f"/{ settings.api_version_prefix }/emissions/emissions_pre_post_production",
         },
         {
             "name": "emissions_totals",
             "description": "",
-            "path": f"/{ current_version_prefix }/emissions/emissions_totals",
+            "path": f"/{ settings.api_version_prefix }/emissions/emissions_totals",
         },
     ],
 }

@@ -1,12 +1,12 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .forestry import router as forestry
 from .forestry_pulp_paper_survey import router as forestry_pulp_paper_survey
 from .forestry_trade_flows import router as forestry_trade_flows
 
 forestry_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["forestry"],
 )
 
@@ -32,17 +32,17 @@ forestry_group_map = {
         {
             "name": "forestry",
             "description": "",
-            "path": f"/{ current_version_prefix }/forestry/forestry",
+            "path": f"/{ settings.api_version_prefix }/forestry/forestry",
         },
         {
             "name": "forestry_pulp_paper_survey",
             "description": "",
-            "path": f"/{ current_version_prefix }/forestry/forestry_pulp_paper_survey",
+            "path": f"/{ settings.api_version_prefix }/forestry/forestry_pulp_paper_survey",
         },
         {
             "name": "forestry_trade_flows",
             "description": "",
-            "path": f"/{ current_version_prefix }/forestry/forestry_trade_flows",
+            "path": f"/{ settings.api_version_prefix }/forestry/forestry_trade_flows",
         },
     ],
 }

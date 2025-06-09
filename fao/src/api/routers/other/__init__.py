@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .area_codes import router as area_codes
 from .item_codes import router as item_codes
@@ -30,7 +30,7 @@ from .sua_crops_livestock import router as sua_crops_livestock
 from .supply_utilization_accounts_food_and_diet import router as supply_utilization_accounts_food_and_diet
 
 other_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["other"],
 )
 
@@ -176,137 +176,137 @@ other_group_map = {
         {
             "name": "area_codes",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/area_codes",
+            "path": f"/{ settings.api_version_prefix }/other/area_codes",
         },
         {
             "name": "item_codes",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/item_codes",
+            "path": f"/{ settings.api_version_prefix }/other/item_codes",
         },
         {
             "name": "elements",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/elements",
+            "path": f"/{ settings.api_version_prefix }/other/elements",
         },
         {
             "name": "sexs",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/sexs",
+            "path": f"/{ settings.api_version_prefix }/other/sexs",
         },
         {
             "name": "flags",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/flags",
+            "path": f"/{ settings.api_version_prefix }/other/flags",
         },
         {
             "name": "currencies",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/currencies",
+            "path": f"/{ settings.api_version_prefix }/other/currencies",
         },
         {
             "name": "sources",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/sources",
+            "path": f"/{ settings.api_version_prefix }/other/sources",
         },
         {
             "name": "surveys",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/surveys",
+            "path": f"/{ settings.api_version_prefix }/other/surveys",
         },
         {
             "name": "releases",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/releases",
+            "path": f"/{ settings.api_version_prefix }/other/releases",
         },
         {
             "name": "purposes",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/purposes",
+            "path": f"/{ settings.api_version_prefix }/other/purposes",
         },
         {
             "name": "donors",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/donors",
+            "path": f"/{ settings.api_version_prefix }/other/donors",
         },
         {
             "name": "geographic_levels",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/geographic_levels",
+            "path": f"/{ settings.api_version_prefix }/other/geographic_levels",
         },
         {
             "name": "aquastat",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/aquastat",
+            "path": f"/{ settings.api_version_prefix }/other/aquastat",
         },
         {
             "name": "climate_change_emissions_indicators",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/climate_change_emissions_indicators",
+            "path": f"/{ settings.api_version_prefix }/other/climate_change_emissions_indicators",
         },
         {
             "name": "consumer_price_indices",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/consumer_price_indices",
+            "path": f"/{ settings.api_version_prefix }/other/consumer_price_indices",
         },
         {
             "name": "cost_affordability_healthy_diet_co_ahd",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/cost_affordability_healthy_diet_co_ahd",
+            "path": f"/{ settings.api_version_prefix }/other/cost_affordability_healthy_diet_co_ahd",
         },
         {
             "name": "deflators",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/deflators",
+            "path": f"/{ settings.api_version_prefix }/other/deflators",
         },
         {
             "name": "development_assistance_to_agriculture",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/development_assistance_to_agriculture",
+            "path": f"/{ settings.api_version_prefix }/other/development_assistance_to_agriculture",
         },
         {
             "name": "exchange_rate",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/exchange_rate",
+            "path": f"/{ settings.api_version_prefix }/other/exchange_rate",
         },
         {
             "name": "fertilizers_detailed_trade_matrix",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/fertilizers_detailed_trade_matrix",
+            "path": f"/{ settings.api_version_prefix }/other/fertilizers_detailed_trade_matrix",
         },
         {
             "name": "household_consumption_and_expenditure_surveys_food_and_diet",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/household_consumption_and_expenditure_surveys_food_and_diet",
+            "path": f"/{ settings.api_version_prefix }/other/household_consumption_and_expenditure_surveys_food_and_diet",
         },
         {
             "name": "individual_quantitative_dietary_data_food_and_diet",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/individual_quantitative_dietary_data_food_and_diet",
+            "path": f"/{ settings.api_version_prefix }/other/individual_quantitative_dietary_data_food_and_diet",
         },
         {
             "name": "macro_statistics_key_indicators",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/macro_statistics_key_indicators",
+            "path": f"/{ settings.api_version_prefix }/other/macro_statistics_key_indicators",
         },
         {
             "name": "minimum_dietary_diversity_for_women_mdd_w_food_and_diet",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/minimum_dietary_diversity_for_women_mdd_w_food_and_diet",
+            "path": f"/{ settings.api_version_prefix }/other/minimum_dietary_diversity_for_women_mdd_w_food_and_diet",
         },
         {
             "name": "sdg_bulk_downloads",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/sdg_bulk_downloads",
+            "path": f"/{ settings.api_version_prefix }/other/sdg_bulk_downloads",
         },
         {
             "name": "sua_crops_livestock",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/sua_crops_livestock",
+            "path": f"/{ settings.api_version_prefix }/other/sua_crops_livestock",
         },
         {
             "name": "supply_utilization_accounts_food_and_diet",
             "description": "",
-            "path": f"/{ current_version_prefix }/other/supply_utilization_accounts_food_and_diet",
+            "path": f"/{ settings.api_version_prefix }/other/supply_utilization_accounts_food_and_diet",
         },
     ],
 }

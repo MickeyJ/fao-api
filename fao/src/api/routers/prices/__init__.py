@@ -1,11 +1,11 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .prices_archive import router as prices_archive
 from .prices import router as prices
 
 prices_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["prices"],
 )
 
@@ -26,12 +26,12 @@ prices_group_map = {
         {
             "name": "prices_archive",
             "description": "",
-            "path": f"/{ current_version_prefix }/prices/prices_archive",
+            "path": f"/{ settings.api_version_prefix }/prices/prices_archive",
         },
         {
             "name": "prices",
             "description": "",
-            "path": f"/{ current_version_prefix }/prices/prices",
+            "path": f"/{ settings.api_version_prefix }/prices/prices",
         },
     ],
 }

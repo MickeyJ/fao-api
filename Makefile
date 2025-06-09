@@ -28,14 +28,15 @@ else
     PYTHON = python
 endif
 
-.PHONY: venv env-status initialize requirements install api \
-	run-all-pipelines-local run-all-pipelines-remote NO-DIRECT-USE-run-all-pipelines \
+.PHONY: all venv env-status initialize requirements install \
+	run-api-local run-api-remote run-all-pipelines-local run-all-pipelines-remote \
 	use-remote-db use-local-db use-local-db-admin db-init db-upgrade-local db-revision-local \
-	db-make-current-local db-upgrade-remote db-revision-remote NO-DIRECT-USE-db-upgrade \
-	NO-DIRECT-USE-db-revision NO-DIRECT-USE-db-make-current create-db-local-admin \
-	drop-db-local-admin clear-all-tables-local show-all-tables NO-DIRECT-USE-create-db \
-	NO-DIRECT-USE-drop-db NO-DIRECT-USE-reset-db NO-DIRECT-USE-clear-all-tables tf-fmt tf-validate \
-	tf-plan tf-apply
+	db-stamp-local db-upgrade-remote db-revision-remote create-db-local-admin drop-db-local-admin \
+	clear-all-tables-local show-all-tables tf-fmt tf-validate tf-plan tf-apply \
+	NO-DIRECT-USE-run-api NO-DIRECT-USE-run-all-pipelines \
+	NO-DIRECT-USE-db-upgrade NO-DIRECT-USE-db-revision NO-DIRECT-USE-db-stamp \
+	NO-DIRECT-USE-create-db NO-DIRECT-USE-drop-db NO-DIRECT-USE-reset-db \
+	NO-DIRECT-USE-clear-all-tables
 
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 #  			Python Environment
@@ -68,7 +69,20 @@ install:
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 #        		Local Api
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
-api:
+run-api-local:
+	make use-local-db
+	@echo " "
+	@echo "Running api on LOCAL database..."
+	$(MAKE) NO-DIRECT-USE-run-api
+
+run-api-remote:
+	make use-remote-db
+	@echo " "
+	@echo "Running api on REMOTE database..."
+	$(MAKE) NO-DIRECT-USE-run-api
+	make use-local-db
+
+NO-DIRECT-USE-run-api:
 	$(ACTIVATE) $(PYTHON) -m fao.src.api
 
 
@@ -97,15 +111,15 @@ NO-DIRECT-USE-run-all-pipelines:
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 use-remote-db:
 	cp remote.env .env
-	@echo "Switched to remote database"
+	@echo "Switched to REMOTE database"
 
 use-local-db:
 	cp local.env .env
-	@echo "Switched to local database"
+	@echo "Switched to LOCAL database"
 
 use-local-db-admin:
 	cp local-admin.env .env
-	@echo "Switched to local database as admin"
+	@echo "Switched to LOCAL database as ADMIN"
 
 
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-

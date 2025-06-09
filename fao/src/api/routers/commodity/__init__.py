@@ -1,12 +1,12 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .commodity_balances_non_food_2013_old_methodology import router as commodity_balances_non_food_2013_old_methodology
 from .commodity_balances_non_food_2010 import router as commodity_balances_non_food_2010
 from .commodity_balances_non_food import router as commodity_balances_non_food
 
 commodity_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["commodity"],
 )
 
@@ -32,17 +32,17 @@ commodity_group_map = {
         {
             "name": "commodity_balances_non_food_2013_old_methodology",
             "description": "",
-            "path": f"/{ current_version_prefix }/commodity/commodity_balances_non_food_2013_old_methodology",
+            "path": f"/{ settings.api_version_prefix }/commodity/commodity_balances_non_food_2013_old_methodology",
         },
         {
             "name": "commodity_balances_non_food_2010",
             "description": "",
-            "path": f"/{ current_version_prefix }/commodity/commodity_balances_non_food_2010",
+            "path": f"/{ settings.api_version_prefix }/commodity/commodity_balances_non_food_2010",
         },
         {
             "name": "commodity_balances_non_food",
             "description": "",
-            "path": f"/{ current_version_prefix }/commodity/commodity_balances_non_food",
+            "path": f"/{ settings.api_version_prefix }/commodity/commodity_balances_non_food",
         },
     ],
 }

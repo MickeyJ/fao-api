@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-
-from . import current_version_prefix, api_map
+from fao.src.core import settings
+from ..core.middleware import add_version_headers
+from . import api_map
 
 # Import all the routers
 from .routers.other import other_api
@@ -23,20 +24,20 @@ from .routers.production import production_api
 
 # Create main app
 app = FastAPI(
-    title="Food Price Analysis API",
-    description="API for analyzing global food commodity prices",
-    version="1.0.0",
-    docs_url="/docs",  # Put docs at root instead of /docs
-    redoc_url="/redoc",
+    title=settings.api_title,
+    description=settings.api_description,
+    version=settings.api_version,
+    docs_url=settings.docs_url,
+    redoc_url=settings.redoc_url,
 )
 
-# Add CORS middleware
+# Custom middleware
+app.middleware("http")(add_version_headers)
+
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://app.mickeymalotte.com",
-    ],  # Next.js dev server
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,10 +70,27 @@ except ImportError as e:
 except Exception as e:
     print(f"⚠️  Error loading custom routers: {e}")
 
-# Root endpoint
+# Root endpoint with version info
 @app.get("/")
 def root():
-    return api_map
+    return {
+        "version": settings.api_version,
+        "version_prefix": settings.api_version_prefix,
+        "versions": "/versions",
+        "headers": {
+            "X-API-Version": "Current API version",
+            "X-API-Version-Major": "Major version (v1, v2, etc)",
+        }
+    }
+
+# Version-specific root endpoint
+@app.get(f"/{settings.api_version_prefix}")
+def version_root():
+    return {
+        "version": settings.api_version,
+        "status": "active",
+        "endpoints": api_map["endpoints"]
+    }
 
 if __name__ == "__main__":
     import uvicorn
@@ -84,4 +102,9 @@ if __name__ == "__main__":
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
-    uvicorn.run("fao.src.api.__main__:app", host="localhost", port=8000, reload=True)
+    uvicorn.run(
+        "fao.src.api.__main__:app", 
+        host=settings.api_host, 
+        port=settings.api_port, 
+        reload=True
+    )

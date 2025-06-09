@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .investment_capital_stock import router as investment_capital_stock
 from .investment_country_investment_statistics_profile import router as investment_country_investment_statistics_profile
@@ -10,7 +10,7 @@ from .investment_machinery_archive import router as investment_machinery_archive
 from .investment_machinery import router as investment_machinery
 
 investment_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["investment"],
 )
 
@@ -56,37 +56,37 @@ investment_group_map = {
         {
             "name": "investment_capital_stock",
             "description": "",
-            "path": f"/{ current_version_prefix }/investment/investment_capital_stock",
+            "path": f"/{ settings.api_version_prefix }/investment/investment_capital_stock",
         },
         {
             "name": "investment_country_investment_statistics_profile",
             "description": "",
-            "path": f"/{ current_version_prefix }/investment/investment_country_investment_statistics_profile",
+            "path": f"/{ settings.api_version_prefix }/investment/investment_country_investment_statistics_profile",
         },
         {
             "name": "investment_credit_agriculture",
             "description": "",
-            "path": f"/{ current_version_prefix }/investment/investment_credit_agriculture",
+            "path": f"/{ settings.api_version_prefix }/investment/investment_credit_agriculture",
         },
         {
             "name": "investment_foreign_direct_investment",
             "description": "",
-            "path": f"/{ current_version_prefix }/investment/investment_foreign_direct_investment",
+            "path": f"/{ settings.api_version_prefix }/investment/investment_foreign_direct_investment",
         },
         {
             "name": "investment_government_expenditure",
             "description": "",
-            "path": f"/{ current_version_prefix }/investment/investment_government_expenditure",
+            "path": f"/{ settings.api_version_prefix }/investment/investment_government_expenditure",
         },
         {
             "name": "investment_machinery_archive",
             "description": "",
-            "path": f"/{ current_version_prefix }/investment/investment_machinery_archive",
+            "path": f"/{ settings.api_version_prefix }/investment/investment_machinery_archive",
         },
         {
             "name": "investment_machinery",
             "description": "",
-            "path": f"/{ current_version_prefix }/investment/investment_machinery",
+            "path": f"/{ settings.api_version_prefix }/investment/investment_machinery",
         },
     ],
 }

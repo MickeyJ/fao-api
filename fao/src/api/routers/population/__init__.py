@@ -1,11 +1,11 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .population_age_groups import router as population_age_groups
 from .population import router as population
 
 population_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["population"],
 )
 
@@ -26,12 +26,12 @@ population_group_map = {
         {
             "name": "population_age_groups",
             "description": "",
-            "path": f"/{ current_version_prefix }/population/population_age_groups",
+            "path": f"/{ settings.api_version_prefix }/population/population_age_groups",
         },
         {
             "name": "population",
             "description": "",
-            "path": f"/{ current_version_prefix }/population/population",
+            "path": f"/{ settings.api_version_prefix }/population/population",
         },
     ],
 }
