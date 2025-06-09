@@ -3,11 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
 from fao.src.db.database import get_db
-from fao.src.db.pipelines.cost_affordability_healthy_diet_co_ahd.cost_affordability_healthy_diet_co_ahd_model import (
-    CostAffordabilityHealthyDietCoAhd,
-)
-
-
+from fao.src.db.pipelines.cost_affordability_healthy_diet_co_ahd.cost_affordability_healthy_diet_co_ahd_model import CostAffordabilityHealthyDietCoAhd
 # Import core/lookup tables for joins
 from fao.src.db.pipelines.area_codes.area_codes_model import AreaCodes
 from fao.src.db.pipelines.item_codes.item_codes_model import ItemCodes
@@ -20,7 +16,6 @@ router = APIRouter(
     tags=["cost_affordability_healthy_diet_co_ahd"],
     responses={404: {"description": "Not found"}},
 )
-
 
 @router.get("/")
 def get_cost_affordability_healthy_diet_co_ahd(
@@ -36,7 +31,7 @@ def get_cost_affordability_healthy_diet_co_ahd(
     release: Optional[str] = Query(None, description="Filter by releases description"),
     flag: Optional[str] = Query(None, description="Filter by flags code"),
     description: Optional[str] = Query(None, description="Filter by flags description"),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """
     cost affordability healthy diet co ahd data with filters.
@@ -52,12 +47,10 @@ def get_cost_affordability_healthy_diet_co_ahd(
     - flag: Filter by flags code
     - description: Filter by flags description (partial match)
     """
-
+    
     query = (
         select(
-            CostAffordabilityHealthyDietCoAhd.year,
-            CostAffordabilityHealthyDietCoAhd.unit,
-            CostAffordabilityHealthyDietCoAhd.value,
+            CostAffordabilityHealthyDietCoAhd,
             AreaCodes.area_code.label("area_codes_code"),
             AreaCodes.area.label("area_codes_desc"),
             ItemCodes.item_code.label("item_codes_code"),
@@ -76,60 +69,73 @@ def get_cost_affordability_healthy_diet_co_ahd(
         .outerjoin(Releases, CostAffordabilityHealthyDietCoAhd.release_code_id == Releases.id)
         .outerjoin(Flags, CostAffordabilityHealthyDietCoAhd.flag_id == Flags.id)
     )
-
-    # # Apply filters
-    # if area_code:
-    #     query = query.where(AreaCodes.area_code == area_code)
-    # if area:
-    #     query = query.where(AreaCodes.area.ilike("%" + area + "%"))
-    # if item_code:
-    #     query = query.where(ItemCodes.item_code == item_code)
-    # if item:
-    #     query = query.where(ItemCodes.item.ilike("%" + item + "%"))
-    # if element_code:
-    #     query = query.where(Elements.element_code == element_code)
-    # if element:
-    #     query = query.where(Elements.element.ilike("%" + element + "%"))
-    # if release_code:
-    #     query = query.where(Releases.release_code == release_code)
-    # if release:
-    #     query = query.where(Releases.release.ilike("%" + release + "%"))
-    # if flag:
-    #     query = query.where(Flags.flag == flag)
-    # if description:
-    #     query = query.where(Flags.description.ilike("%" + description + "%"))
-
+    
+    # Apply filters
+    if area_code:
+        query = query.where(AreaCodes.area_code == area_code)
+    if area:
+        query = query.where(AreaCodes.area.ilike("%" + area + "%"))
+    if item_code:
+        query = query.where(ItemCodes.item_code == item_code)
+    if item:
+        query = query.where(ItemCodes.item.ilike("%" + item + "%"))
+    if element_code:
+        query = query.where(Elements.element_code == element_code)
+    if element:
+        query = query.where(Elements.element.ilike("%" + element + "%"))
+    if release_code:
+        query = query.where(Releases.release_code == release_code)
+    if release:
+        query = query.where(Releases.release.ilike("%" + release + "%"))
+    if flag:
+        query = query.where(Flags.flag == flag)
+    if description:
+        query = query.where(Flags.description.ilike("%" + description + "%"))
+   
+    
     # Get total count (with filters)
-    total_count = db.execute(query.with_only_columns(func.count()).order_by(None)).scalar()
-
+    total_count = db.execute(select(func.count()).select_from(query.subquery())).scalar()
+    
     # Paginate and execute
     query = query.offset(offset).limit(limit)
     results = db.execute(query).mappings().all()
-
-    return {"total_count": total_count, "limit": limit, "offset": offset, "data": [dict(row) for row in results]}
-
+    
+    return {
+        "total_count": total_count,
+        "limit": limit,
+        "offset": offset,
+        "data": [dict(row) for row in results]
+    }
 
 # Metadata endpoints for understanding the dataset
-
 
 @router.get("/areas")
 def get_available_areas(db: Session = Depends(get_db)):
     """Get all areas with data in this dataset"""
     query = (
         select(
-            AreaCodes.area_code, AreaCodes.area, func.count(CostAffordabilityHealthyDietCoAhd.id).label("record_count")
+            AreaCodes.area_code,
+            AreaCodes.area,
+            func.count(CostAffordabilityHealthyDietCoAhd.id).label('record_count')
         )
         .join(CostAffordabilityHealthyDietCoAhd, AreaCodes.id == CostAffordabilityHealthyDietCoAhd.area_code_id)
         .group_by(AreaCodes.area_code, AreaCodes.area)
         .order_by(func.count(CostAffordabilityHealthyDietCoAhd.id).desc())
     )
-
+    
     results = db.execute(query).all()
-
+    
     return {
         "dataset": "cost_affordability_healthy_diet_co_ahd",
         "total_areas": len(results),
-        "areas": [{"area_code": r.area_code, "area": r.area, "record_count": r.record_count} for r in results],
+        "areas": [
+            {
+                "area_code": r.area_code,
+                "area": r.area,
+                "record_count": r.record_count
+            }
+            for r in results
+        ]
     }
 
 
@@ -138,20 +144,32 @@ def get_available_items(db: Session = Depends(get_db)):
     """Get all items available in this dataset with record counts"""
     query = (
         select(
-            ItemCodes.item_code, ItemCodes.item, func.count(CostAffordabilityHealthyDietCoAhd.id).label("record_count")
+            ItemCodes.item_code,
+            ItemCodes.item,
+            func.count(CostAffordabilityHealthyDietCoAhd.id).label('record_count')
         )
         .join(CostAffordabilityHealthyDietCoAhd, ItemCodes.id == CostAffordabilityHealthyDietCoAhd.item_code_id)
         .group_by(ItemCodes.item_code, ItemCodes.item)
         .order_by(func.count(CostAffordabilityHealthyDietCoAhd.id).desc())
     )
-
+    
     results = db.execute(query).all()
-
+    
     return {
         "dataset": "cost_affordability_healthy_diet_co_ahd",
         "total_items": len(results),
-        "items": [{"item_code": r.item_code, "item": r.item, "record_count": r.record_count} for r in results],
+        "items": [
+            {
+                "item_code": r.item_code,
+                "item": r.item,
+                "record_count": r.record_count
+            }
+            for r in results
+        ]
     }
+
+
+
 
 
 @router.get("/elements")
@@ -161,36 +179,50 @@ def get_available_elements(db: Session = Depends(get_db)):
         select(
             Elements.element_code,
             Elements.element,
-            func.count(CostAffordabilityHealthyDietCoAhd.id).label("record_count"),
+            func.count(CostAffordabilityHealthyDietCoAhd.id).label('record_count')
         )
         .join(CostAffordabilityHealthyDietCoAhd, Elements.id == CostAffordabilityHealthyDietCoAhd.element_code_id)
         .group_by(Elements.element_code, Elements.element)
         .order_by(func.count(CostAffordabilityHealthyDietCoAhd.id).desc())
     )
-
+    
     results = db.execute(query).all()
-
+    
     return {
         "dataset": "cost_affordability_healthy_diet_co_ahd",
         "total_elements": len(results),
         "elements": [
-            {"element_code": r.element_code, "element": r.element, "record_count": r.record_count} for r in results
-        ],
+            {
+                "element_code": r.element_code,
+                "element": r.element,
+                "record_count": r.record_count
+            }
+            for r in results
+        ]
     }
+
+
+
+
+
 
 
 @router.get("/flags")
 def get_data_quality_summary(db: Session = Depends(get_db)):
     """Get data quality flag distribution for this dataset"""
     query = (
-        select(Flags.flag, Flags.description, func.count(CostAffordabilityHealthyDietCoAhd.id).label("record_count"))
+        select(
+            Flags.flag,
+            Flags.description,
+            func.count(CostAffordabilityHealthyDietCoAhd.id).label('record_count')
+        )
         .join(CostAffordabilityHealthyDietCoAhd, Flags.id == CostAffordabilityHealthyDietCoAhd.flag_id)
         .group_by(Flags.flag, Flags.description)
         .order_by(func.count(CostAffordabilityHealthyDietCoAhd.id).desc())
     )
-
+    
     results = db.execute(query).all()
-
+    
     return {
         "dataset": "cost_affordability_healthy_diet_co_ahd",
         "total_records": sum(r.record_count for r in results),
@@ -199,12 +231,11 @@ def get_data_quality_summary(db: Session = Depends(get_db)):
                 "flag": r.flag,
                 "description": r.description,
                 "record_count": r.record_count,
-                "percentage": round(r.record_count / sum(r2.record_count for r2 in results) * 100, 2),
+                "percentage": round(r.record_count / sum(r2.record_count for r2 in results) * 100, 2)
             }
             for r in results
-        ],
+        ]
     }
-
 
 @router.get("/years")
 def get_temporal_coverage(db: Session = Depends(get_db)):
@@ -213,33 +244,32 @@ def get_temporal_coverage(db: Session = Depends(get_db)):
     query = (
         select(
             CostAffordabilityHealthyDietCoAhd.year,
-            func.count(CostAffordabilityHealthyDietCoAhd.id).label("record_count"),
+            func.count(CostAffordabilityHealthyDietCoAhd.id).label('record_count')
         )
         .group_by(CostAffordabilityHealthyDietCoAhd.year)
         .order_by(CostAffordabilityHealthyDietCoAhd.year)
     )
-
+    
     results = db.execute(query).all()
     years_data = [{"year": r.year, "record_count": r.record_count} for r in results]
-
+    
     if not years_data:
         return {"dataset": "cost_affordability_healthy_diet_co_ahd", "message": "No temporal data available"}
-
+    
     return {
         "dataset": "cost_affordability_healthy_diet_co_ahd",
         "earliest_year": min(r["year"] for r in years_data),
         "latest_year": max(r["year"] for r in years_data),
         "total_years": len(years_data),
         "total_records": sum(r["record_count"] for r in years_data),
-        "years": years_data,
+        "years": years_data
     }
-
 
 @router.get("/summary")
 def get_dataset_summary(db: Session = Depends(get_db)):
     """Get comprehensive summary of this dataset"""
     total_records = db.query(func.count(CostAffordabilityHealthyDietCoAhd.id)).scalar()
-
+    
     summary = {
         "dataset": "cost_affordability_healthy_diet_co_ahd",
         "total_records": total_records,
@@ -249,18 +279,12 @@ def get_dataset_summary(db: Session = Depends(get_db)):
             "elements",
             "releases",
             "flags",
-        ],
+        ]
     }
-
+    
     # Add counts for each FK relationship
-    summary["unique_areas"] = db.query(
-        func.count(func.distinct(CostAffordabilityHealthyDietCoAhd.area_code_id))
-    ).scalar()
-    summary["unique_items"] = db.query(
-        func.count(func.distinct(CostAffordabilityHealthyDietCoAhd.item_code_id))
-    ).scalar()
-    summary["unique_elements"] = db.query(
-        func.count(func.distinct(CostAffordabilityHealthyDietCoAhd.element_code_id))
-    ).scalar()
-
+    summary["unique_areas"] = db.query(func.count(func.distinct(CostAffordabilityHealthyDietCoAhd.area_code_id))).scalar()
+    summary["unique_items"] = db.query(func.count(func.distinct(CostAffordabilityHealthyDietCoAhd.item_code_id))).scalar()
+    summary["unique_elements"] = db.query(func.count(func.distinct(CostAffordabilityHealthyDietCoAhd.element_code_id))).scalar()
+    
     return summary

@@ -92,8 +92,3 @@ override.tf.json
 # macOS / Linux / Windows system files
 .DS_Store
 Thumbs.db
-
-
-# one off files
-reports/
-*/.generator_cache/*
