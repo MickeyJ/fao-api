@@ -2,6 +2,20 @@ from typing import List
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, or_, func
+from ....core.validation import (
+    is_valid_area_code,
+    is_valid_item_code,
+    is_valid_element_code,
+    is_valid_year_range,
+)
+from ....core.exceptions import (
+    missing_parameter,
+    invalid_parameter,
+    invalid_area_code,
+    invalid_item_code,
+    invalid_element_code,
+    no_data_found,
+)
 
 # Correct imports for FAO API project
 from fao.src.db.database import get_db
@@ -17,66 +31,28 @@ router = APIRouter(
     tags=["prices", "analytics", "visualizations", "multi-line"],
 )
 
-# Placeholder for the specific element code you'll determine
-PRICE_ELEMENT_CODE = "5532"  # TODO: Replace with actual element code (e.g., Producer Price)
 
-# {
-#   "dataset": "prices",
-#   "total_records": 1261761,
-#   "flag_distribution": [
-#     {
-#       "flag": "A",
-#       "description": "Official figure",
-#       "record_count": 837045,
-#       "percentage": 66.34
-#     },
-#     {
-#       "flag": "I",
-#       "description": "Imputed value",
-#       "record_count": 420067,
-#       "percentage": 33.29
-#     },
-#     {
-#       "flag": "X",
-#       "description": "Figure from international organizations",
-#       "record_count": 4649,
-#       "percentage": 0.37
-#     }
-#   ]
-# }
+# "flag": "A",
+# "description": "Official figure",
+# "record_count": 837045,
+# "percentage": 66.34
 
-# {
-#   "dataset": "prices",
-#   "total_elements": 4,
-#   "elements": [
-#     {
-#       "element_code": "5530",
-#       "element": "Producer Price (LCU/tonne)",
-#       "record_count": 512874
-#     },
-#     {
-#       "element_code": "5539",
-#       "element": "Producer Price Index (2014-2016 = 100)",
-#       "record_count": 419911
-#     },
-#     {
-#       "element_code": "5531",
-#       "element": "Producer Price (SLC/tonne)",
-#       "record_count": 166274
-#     },
-#     {
-#       "element_code": "5532",
-#       "element": "Producer Price (USD/tonne)",
-#       "record_count": 162702
-#     }
-#   ]
-# }
+# "element_code": "5530",
+# "element": "Producer Price (LCU/tonne)",
+# "record_count": 512874
+
+# "element_code": "5532",
+# "element": "Producer Price (USD/tonne)",
+# "record_count": 162702
+
+PRICE_ELEMENT_CODE = "5532"
 
 
 @router.get("/price-data")
 def get_multi_line_price_trends(
-    item_code: int = Query(None, description="Item FAO code (2-4 digits)"),
-    area_codes: List[int] = Query(None, description="List of up to 5 area FAO codes"),
+    item_code: str = Query(None, description="Item FAO code (2-4 digits)"),
+    area_codes: List[str] = Query(None, description="List of up to 5 area FAO codes"),
+    element_code: str = Query(PRICE_ELEMENT_CODE, description="Element code for price data"),
     year_start: int = Query(1990, description="Start year"),
     year_end: int = Query(2023, description="End year"),
     db: Session = Depends(get_db),
@@ -85,58 +61,93 @@ def get_multi_line_price_trends(
     Get price trend data for multi-line chart visualization
     Returns data optimized for D3.js multi-line charts
     """
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    # Item Code validation
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     if not item_code:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "errcode": 422,
-                "message": "Missing item_code query parameter",
-            },
-        )
+        raise missing_parameter("item_code")
 
-    if not (10 <= item_code <= 9999):
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "errcode": 422,
-                "message": "item_code must be between 10 and 9999",
-            },
-        )
+    if not is_valid_item_code(item_code, db):
+        raise invalid_item_code(item_code)
 
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    # Area Code validation
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     if not area_codes:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "errcode": 422,
-                "message": "Missing area_codes query parameter",
-            },
-        )
+        raise missing_parameter("area_codes")
 
-    # Validate inputs
     if len(area_codes) > 5:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "errcode": 422,
-                "message": "Maximum 5 area_codes allowed",
-            },
+        raise invalid_parameter(
+            param="area_codes", value=f"{len(area_codes)} items", reason="maximum 5 area codes allowed"
         )
 
-    results = get_multi_line_price_data(
-        item_code,
-        area_codes,
-        year_start,
-        year_end,
-        db,
+    for area_code in area_codes:
+        if area_code and not is_valid_area_code(area_code, db):
+            raise invalid_area_code(area_code)
+
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    # Element Code validation
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    if not element_code:
+        raise missing_parameter("element_code")
+
+    if element_code and not is_valid_element_code(element_code, db):
+        raise invalid_element_code(element_code)
+
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    # Year validation
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    if not is_valid_year_range(year_start, year_end):
+        raise invalid_parameter(
+            param="year_range", value=f"{year_start}-{year_end}", reason="start year must be before end year"
+        )
+
+    # Build the query
+    query = (
+        select(
+            AreaCodes.area.label("area_name"),
+            AreaCodes.area_code.label("area_code"),
+            Prices.year,
+            Prices.value.label("price"),
+            Prices.unit,  # Using unit instead of currency
+            ItemCodes.item.label("item_name"),
+        )
+        .join(ItemCodes, ItemCodes.id == Prices.item_code_id)
+        .join(AreaCodes, AreaCodes.id == Prices.area_code_id)
+        .join(Elements, Elements.id == Prices.element_code_id)
+        .join(Flags, Flags.id == Prices.flag_id)
+        .where(
+            and_(
+                Prices.year >= year_start,
+                Prices.year <= year_end,
+                ItemCodes.item_code == str(item_code),
+                Elements.element_code == element_code,
+                Flags.flag == "A",
+            )
+        )
     )
 
+    # Filter by area_codes (FAO codes)
+    area_conditions = []
+    for area_code in area_codes:
+        area_conditions.append(AreaCodes.area_code == str(area_code))
+
+    query = query.where(or_(*area_conditions))
+
+    # Order by area and year for clean data structure
+    query = query.order_by(AreaCodes.area, Prices.year)
+
+    # Execute query
+    results = db.execute(query).mappings().all()
+
     if not results:
-        print(f"No data found for item {item_code} in areas {area_codes} from {year_start} to {year_end}")
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "errcode": 404,
-                "message": f"No data found for item {item_code} in areas {area_codes} from {year_start} to {year_end}",
+        raise no_data_found(
+            dataset="prices",
+            filters={
+                "item_code": item_code,
+                "area_codes": area_codes,
+                "element_code": element_code,
+                "year_range": f"{year_start}-{year_end}",
             },
         )
 
@@ -207,8 +218,21 @@ def get_multi_line_price_trends(
 
 
 @router.get("/items")
-def get_all_items(db: Session = Depends(get_db)):
-    """Get all food items with price data"""
+def get_all_items(
+    element_code: str = Query(PRICE_ELEMENT_CODE, description="Element code for price data"),
+    db: Session = Depends(get_db),
+):
+    """Get all food items that have price data"""
+
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    # Element Code validation
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    if not element_code:
+        raise missing_parameter("element_code")
+
+    if element_code and not is_valid_element_code(element_code, db):
+        raise invalid_element_code(element_code)
+
     query = (
         select(
             ItemCodes.id,
@@ -220,27 +244,53 @@ def get_all_items(db: Session = Depends(get_db)):
         .join(Prices, ItemCodes.id == Prices.item_code_id)
         .join(Elements, Elements.id == Prices.element_code_id)
         .join(Flags, Flags.id == Prices.flag_id)
-        .where(
-            and_(Elements.element_code == PRICE_ELEMENT_CODE, ItemCodes.source_dataset == "prices", Flags.flag == "A")
-        )
+        .where(and_(Elements.element_code == element_code, ItemCodes.source_dataset == "prices", Flags.flag == "A"))
         .group_by(ItemCodes.id, ItemCodes.item, ItemCodes.item_code, ItemCodes.item_code_cpc)
         .order_by(func.count(Prices.id).desc(), ItemCodes.item)
     )
 
     results = db.execute(query).mappings().all()
 
+    if not results:
+        raise no_data_found(
+            dataset="item_codes",
+            filters={
+                "element_code": element_code,
+            },
+        )
+
     return {"items": [dict(item) for item in results]}
 
 
 @router.get("/available-areas")
 def get_available_data_for_item(
-    item_code: int = Query(..., description="Item FAO code"),
+    item_code: str = Query(..., description="Item FAO code"),
+    element_code: str = Query(PRICE_ELEMENT_CODE, description="Element code for price data"),
     db: Session = Depends(get_db),
 ):
     """
     Get what countries and years have data for this item
     Useful for frontend to show available options
     """
+
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    # Item Code validation
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    if not item_code:
+        raise missing_parameter("item_code")
+
+    if not is_valid_item_code(item_code, db):
+        raise invalid_item_code(item_code)
+
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    # Element Code validation
+    # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    if not element_code:
+        raise missing_parameter("element_code")
+
+    if element_code and not is_valid_element_code(element_code, db):
+        raise invalid_element_code(element_code)
+
     query = (
         select(
             AreaCodes.area.label("name"),
@@ -255,7 +305,12 @@ def get_available_data_for_item(
         .join(Elements, Elements.id == Prices.element_code_id)
         .join(Flags, Flags.id == Prices.flag_id)
         .where(
-            and_(ItemCodes.item_code == str(item_code), Elements.element_code == PRICE_ELEMENT_CODE, Flags.flag == "A")
+            and_(
+                ItemCodes.item_code == str(item_code),
+                ItemCodes.source_dataset == "prices",
+                Elements.element_code == element_code,
+                Flags.flag == "A",
+            )
         )
         .group_by(AreaCodes.area, AreaCodes.area_code, Prices.unit)
         .order_by(func.count(Prices.year).desc())
@@ -263,69 +318,17 @@ def get_available_data_for_item(
 
     results = db.execute(query).mappings().all()
 
+    if not results:
+        raise no_data_found(
+            dataset="area_codes",
+            filters={
+                "item_code": item_code,
+                "element_code": element_code,
+            },
+        )
+
     return {
         "item_code": item_code,
         "available_areas": [dict(row) for row in results],
         "total_areas": len(results),
     }
-
-
-def validate_year_range(year_start: int, year_end: int):
-    """Shared validation function"""
-    if year_start > year_end:
-        raise HTTPException(400, "Start year must be before end year")
-    return year_start, year_end
-
-
-def get_multi_line_price_data(
-    item_code: int,
-    area_codes: List[int],
-    year_start: int,
-    year_end: int,
-    db: Session,
-):
-    """
-    Get price trend data for multi-line chart visualization
-    Returns data optimized for D3.js multi-line charts
-    """
-    validate_year_range(year_start, year_end)
-
-    # Build the query
-    query = (
-        select(
-            AreaCodes.area.label("area_name"),
-            AreaCodes.area_code.label("area_code"),
-            Prices.year,
-            Prices.value.label("price"),
-            Prices.unit,  # Using unit instead of currency
-            ItemCodes.item.label("item_name"),
-        )
-        .join(ItemCodes, ItemCodes.id == Prices.item_code_id)
-        .join(AreaCodes, AreaCodes.id == Prices.area_code_id)
-        .join(Elements, Elements.id == Prices.element_code_id)
-        .join(Flags, Flags.id == Prices.flag_id)
-        .where(
-            and_(
-                Prices.year >= year_start,
-                Prices.year <= year_end,
-                ItemCodes.item_code == str(item_code),
-                Elements.element_code == PRICE_ELEMENT_CODE,
-                Flags.flag == "A",
-            )
-        )
-    )
-
-    # Filter by area_codes (FAO codes)
-    area_conditions = []
-    for area_code in area_codes:
-        area_conditions.append(AreaCodes.area_code == str(area_code))
-
-    query = query.where(or_(*area_conditions))
-
-    # Order by area and year for clean data structure
-    query = query.order_by(AreaCodes.area, Prices.year)
-
-    # Execute query
-    results = db.execute(query).mappings().all()
-
-    return results
