@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
+from fao.src.core import settings
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.inputs_pesticides_trade.inputs_pesticides_trade_model import InputsPesticidesTrade
-# Import core/lookup tables for joins
+# Import core/reference tables for joins
 from fao.src.db.pipelines.area_codes.area_codes_model import AreaCodes
 from fao.src.db.pipelines.item_codes.item_codes_model import ItemCodes
 from fao.src.db.pipelines.elements.elements_model import Elements
@@ -18,8 +19,8 @@ router = APIRouter(
 
 @router.get("/")
 def get_inputs_pesticides_trade(
-    limit: int = Query(100, le=1000, ge=1, description="Maximum records to return"),
-    offset: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(settings.default_limit, le=settings.max_limit, ge=1, description="Maximum records to return"),
+    offset: int = Query(settings.default_offset, ge=0, description="Number of records to skip"),
     area_code: Optional[str] = Query(None, description="Filter by area_codes code"),
     area: Optional[str] = Query(None, description="Filter by area_codes description"),
     item_code: Optional[str] = Query(None, description="Filter by item_codes code"),

@@ -25,7 +25,7 @@ class Aquastat(Base):
     flag_id = Column(Integer, ForeignKey("flags.id"), index=True)
     unit = Column(String(50), index=False)
     year = Column(SmallInteger, nullable=False, index=True)
-    year_code = Column(String(4), nullable=False, index=False)
+    year_code = Column(String(8), nullable=False, index=False)
     value = Column(Float, nullable=False, index=False)
    
     created_at = Column(DateTime, default=func.now(), nullable=False)

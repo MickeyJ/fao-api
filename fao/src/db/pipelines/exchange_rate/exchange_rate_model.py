@@ -25,7 +25,7 @@ class ExchangeRate(Base):
     iso_currency_code_id = Column(Integer, ForeignKey("currencies.id"), index=True)
     # Foreign key to flags
     flag_id = Column(Integer, ForeignKey("flags.id"), index=True)
-    year_code = Column(String(4), nullable=False, index=False)
+    year_code = Column(String(8), nullable=False, index=False)
     year = Column(SmallInteger, nullable=False, index=True)
     months_code = Column(String(4), nullable=False, index=False)
     months = Column(String(20), nullable=False, index=False)

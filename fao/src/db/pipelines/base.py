@@ -1,10 +1,12 @@
 import pandas as pd
 from abc import ABC, abstractmethod
+from sqlalchemy import text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from typing import Dict, List, Optional, Type
 from ..utils import load_csv, generate_numeric_id, calculate_optimal_chunk_size
 from ..database import run_with_session
+from ..system_models import PipelineProgress
 
 
 class BaseETL(ABC):
@@ -26,7 +28,7 @@ class BaseETL(ABC):
 
     @abstractmethod
     def insert(self, df: pd.DataFrame, session: Session) -> None:
-        """Insert data - different for datasets vs lookups"""
+        """Insert data - different for datasets vs references"""
         pass
 
     def run(self, db: Session) -> None:
@@ -37,7 +39,7 @@ class BaseETL(ABC):
 
 
 class BaseLookupETL(BaseETL):
-    """Base class for lookup table ETL pipelines"""
+    """Base class for reference table ETL pipelines"""
 
     def __init__(self, csv_path: str, model_class: Type, table_name: str, hash_columns: List[str], pk_column: str):
         super().__init__(csv_path, model_class, table_name)
@@ -45,7 +47,7 @@ class BaseLookupETL(BaseETL):
         self.pk_column = pk_column
 
     def base_clean(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Common cleaning for all lookups"""
+        """Common cleaning for all references"""
         if df.empty:
             print(f"No {self.table_name} data to clean.")
             return df
@@ -67,7 +69,7 @@ class BaseLookupETL(BaseETL):
         return df
 
     def insert(self, df: pd.DataFrame, session: Session) -> None:
-        """Common insert logic for lookups"""
+        """Common insert logic for references"""
         if df.empty:
             print(f"No {self.table_name} data to insert.")
             return
@@ -138,7 +140,7 @@ class BaseDatasetETL(BaseETL):
         if self.foreign_keys:
             dataset_name = self.table_name
             for fk in self.foreign_keys:
-                df[fk["hash_fk_sql_column_name"]] = df[fk["lookup_pk_csv_column"]].apply(
+                df[fk["hash_fk_sql_column_name"]] = df[fk["reference_pk_csv_column"]].apply(
                     lambda val: (
                         generate_numeric_id(
                             {col: dataset_name if col == "source_dataset" else str(val) for col in fk["hash_columns"]},
@@ -162,22 +164,73 @@ class BaseDatasetETL(BaseETL):
         print(f"  Cleaned: {initial_count} → {final_count} rows")
         return df
 
+    def get_resume_position(self, session) -> int:
+        """Get the last successfully processed row"""
+        result = session.execute(
+            text(
+                """
+                SELECT last_row_processed 
+                FROM pipeline_progress 
+                WHERE table_name = :table_name 
+                AND status = 'in_progress'
+            """
+            ),
+            {"table_name": self.table_name},
+        ).fetchone()
+
+        return result[0] if result else 0
+
+    def update_progress(self, session, last_row, total_rows, status="in_progress"):
+        """Update progress tracking"""
+        # Check if record exists
+        progress = session.query(PipelineProgress).filter_by(table_name=self.table_name).first()
+
+        if progress:
+            # Update existing
+            progress.last_row_processed = last_row
+            progress.total_rows = total_rows
+            progress.status = status
+            progress.last_chunk_time = func.now()
+        else:
+            # Create new
+            progress = PipelineProgress(
+                table_name=self.table_name, last_row_processed=last_row, total_rows=total_rows, status=status
+            )
+            session.add(progress)
+
+        session.commit()
+
     def insert(self, df: pd.DataFrame, session: Session) -> None:
         """Common insert logic for datasets with chunking"""
         if df.empty:
             print(f"No {self.table_name} data to insert.")
             return
 
-        chunk_size = calculate_optimal_chunk_size(df, base_chunk_size=20000)
-        print(f"\nInserting {self.table_name} data ({len(df):,} rows)")
-        print(f"  Using dynamic chunk size: {chunk_size:,} rows (based on {len(df.columns)} columns)")
+        # Check for resume point
+        start_row = self.get_resume_position(session)
+        original_total = len(df)
 
-        total_rows = len(df)
+        if start_row > 0:
+            print(f"📍 Resuming {self.table_name} from row {start_row:,}/{original_total:,}")
+            df = df.iloc[start_row:]
+            if df.empty:
+                print(f"✅ {self.table_name} already complete!")
+                self.update_progress(session, original_total, original_total, status="completed")
+                return
+
+        # Calculate chunk size
+        chunk_size = calculate_optimal_chunk_size(df, base_chunk_size=40000)
+        print(f"\nInserting {self.table_name} data ({len(df):,} rows remaining)")
+        print(f"  Using chunk size: {chunk_size:,} rows")
+
         total_inserted = 0
 
-        for chunk_idx, start_idx in enumerate(range(0, total_rows, chunk_size)):
-            end_idx = min(start_idx + chunk_size, total_rows)
-            chunk_df = df.iloc[start_idx:end_idx]
+        for chunk_idx, chunk_start in enumerate(range(0, len(df), chunk_size)):
+            chunk_end = min(chunk_start + chunk_size, len(df))
+            chunk_df = df.iloc[chunk_start:chunk_end]
+
+            # Calculate absolute position
+            absolute_position = start_row + chunk_end
 
             records = []
             for _, row in chunk_df.iterrows():
@@ -192,16 +245,24 @@ class BaseDatasetETL(BaseETL):
                     session.commit()
 
                     total_inserted += result.rowcount
+
+                    # Update progress after each chunk
+                    self.update_progress(session, absolute_position, original_total)
+
                     print(
                         f"  Chunk {chunk_idx + 1}: Inserted {result.rowcount} rows "
-                        + f"(Total: {total_inserted:,}/{total_rows:,})"
+                        + f"(Progress: {absolute_position:,}/{original_total:,} - "
+                        + f"{(absolute_position/original_total*100):.1f}%)"
                     )
+
                 except Exception as e:
-                    print(f"  ❌ Error in chunk {chunk_idx + 1}: {e}")
+                    print(f"  ❌ Error at row {absolute_position:,}: {e}")
                     session.rollback()
                     raise
 
-        print(f"✅ {self.table_name} insert complete: {total_inserted:,} rows inserted")
+        # Mark as complete
+        self.update_progress(session, original_total, original_total, status="completed")
+        print(f"✅ {self.table_name} complete: {total_inserted:,} rows inserted")
 
     @abstractmethod
     def build_record(self, row: pd.Series) -> Dict:

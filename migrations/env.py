@@ -5,6 +5,7 @@ from sqlalchemy import pool
 
 from fao.src.db.database import Base, DATABASE_URL
 from fao.all_model_imports import *
+from fao.src.db.system_models import *  # Add this line
 
 from alembic import context
 

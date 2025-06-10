@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .inputs_fertilizers_archive import router as inputs_fertilizers_archive
 from .inputs_fertilizers_nutrient import router as inputs_fertilizers_nutrient
@@ -9,7 +9,7 @@ from .inputs_pesticides_trade import router as inputs_pesticides_trade
 from .inputs_pesticides_use import router as inputs_pesticides_use
 
 inputs_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["inputs"],
 )
 
@@ -50,32 +50,32 @@ inputs_group_map = {
         {
             "name": "inputs_fertilizers_archive",
             "description": "",
-            "path": f"/{ current_version_prefix }/inputs/inputs_fertilizers_archive",
+            "path": f"/{ settings.api_version_prefix }/inputs/inputs_fertilizers_archive",
         },
         {
             "name": "inputs_fertilizers_nutrient",
             "description": "",
-            "path": f"/{ current_version_prefix }/inputs/inputs_fertilizers_nutrient",
+            "path": f"/{ settings.api_version_prefix }/inputs/inputs_fertilizers_nutrient",
         },
         {
             "name": "inputs_fertilizers_product",
             "description": "",
-            "path": f"/{ current_version_prefix }/inputs/inputs_fertilizers_product",
+            "path": f"/{ settings.api_version_prefix }/inputs/inputs_fertilizers_product",
         },
         {
             "name": "inputs_land_use",
             "description": "",
-            "path": f"/{ current_version_prefix }/inputs/inputs_land_use",
+            "path": f"/{ settings.api_version_prefix }/inputs/inputs_land_use",
         },
         {
             "name": "inputs_pesticides_trade",
             "description": "",
-            "path": f"/{ current_version_prefix }/inputs/inputs_pesticides_trade",
+            "path": f"/{ settings.api_version_prefix }/inputs/inputs_pesticides_trade",
         },
         {
             "name": "inputs_pesticides_use",
             "description": "",
-            "path": f"/{ current_version_prefix }/inputs/inputs_pesticides_use",
+            "path": f"/{ settings.api_version_prefix }/inputs/inputs_pesticides_use",
         },
     ],
 }

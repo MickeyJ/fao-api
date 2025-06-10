@@ -1,220 +1,221 @@
-# FAO API Codebase Generator
+# FAO Data API
 
-A Python tool for automatically generating data pipeline code from FAO (Food and Agriculture Organization) ZIP datasets. This generator scans FAO data archives and creates standardized ETL pipeline modules with database integration.
+> ⚠️ **Work in Progress**: This API is under active development and not yet ready for production use. Features, endpoints, and data structures may change without notice.
+
+## Overview
+
+The FAO Data API provides programmatic access to agricultural and food security datasets from the Food and Agriculture Organization of the United Nations. This API serves as a modern interface to 84+ FAO statistical datasets, making global agricultural data more accessible to researchers, policymakers, and developers.
+
+## Current Status
+
+- ✅ Core ETL pipelines operational
+- ✅ Basic API endpoints functional
+- ✅ Database schema implemented
+- ✅ Deployed to AWS App Runner
+- 🚧 Authentication system (in development)
+- 🚧 Rate limiting (planned)
+- 🚧 Comprehensive documentation (in progress)
 
 ## Features
 
-- **Automatic Pipeline Generation**: Scans FAO ZIP files and generates complete Python pipeline modules
-- **Template-Based Code Generation**: Uses Jinja2 templates for consistent code structure
-- **Core Table Management**: Automatically identifies and separates core/shared tables (areas, items, currencies)
-- **Currency Standardization**: Built-in support for M49 country code to currency mapping
-- **Database Integration**: Generated code includes SQLAlchemy ORM models and PostgreSQL bulk insert operations
-- **Modular Architecture**: Each dataset becomes a self-contained pipeline module
+### Available Now
+- RESTful API endpoints for all major FAO datasets
+- Foreign key relationships between datasets
+- Basic filtering and pagination
+- JSON response format
+- Automated data ingestion from FAO sources
 
-*https://bulks-faostat.fao.org/production/datasets_E.json*
+### Datasets Include
+- Agricultural production statistics
+- Food prices and consumer price indices
+- Trade flows (imports/exports)
+- Food security indicators
+- Climate and environmental data
+- Land use and irrigation statistics
+- Employment and rural development indicators
+
+## Technology Stack
+
+- **API Framework**: FastAPI (Python 3.10)
+- **Database**: PostgreSQL (Supabase)
+- **ORM**: SQLAlchemy 2.0
+- **Deployment**: AWS App Runner
+- **ETL**: Custom Python pipelines with pandas
+- **CI/CD**: GitHub Actions
+- **IaC**: Terraform
+
+## Quick Start
+
+### Prerequisites
+- Python 3.10+
+- PostgreSQL 12+
+- pip or conda for package management
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/fao-data-api.git
+cd fao-data-api
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your database credentials
+```
+
+### Database Setup
+
+```bash
+# Run database migrations
+alembic upgrade head
+
+# Run ETL pipelines to populate data (optional)
+python -m fao.src.db.pipelines
+```
+
+### Running the API
+
+```bash
+# Development server
+python -m fao.src.api
+
+# Or with auto-reload
+uvicorn fao.src.api.__main__:app --reload --host localhost --port 8000
+```
+
+## API Usage
+
+### Base URL
+```
+http://localhost:8000/v1
+```
+
+### Example Endpoints
+
+#### Get Price Data
+```bash
+GET /v1/prices/prices?area_code=USA&item_code=0111&year=2023
+```
+
+#### Get Production Statistics
+```bash
+GET /v1/production/production_crops_livestock?limit=100&offset=0
+```
+
+#### List Available Datasets
+```bash
+GET /v1/
+```
+
+### Response Format
+```json
+{
+  "total_count": 1000,
+  "limit": 100,
+  "offset": 0,
+  "data": [
+    {
+      "area_code": "USA",
+      "item_code": "0111",
+      "element": "Producer Price",
+      "year": 2023,
+      "value": 285.5,
+      "unit": "USD/tonne"
+    }
+  ]
+}
+```
 
 ## Project Structure
 
 ```
-ETL-codebase-generator/
-├── requirements.txt          # Python dependencies
-├── Makefile                  # Build and setup commands
-├── generator/                 # Core generation logic
-│   ├── __init__.py           # Configuration (ZIP_PATH)
-│   ├── template_renderer.py  # Jinja2 template rendering
-│   └── generator.py          # Pipeline code generator
-├── templates/                # Jinja2 templates
-│   ├── __init__.py.jinja2    # Pipeline initialization
-│   ├── __main__.py.jinja2    # Pipeline execution entry point
-│   ├── model.py.jinja2      # Individual module template
-│   └── __init___empty.py.jinja2  # Empty init template
-│ 
-│ # Generated Codebase
-├── fao/ 
-├── all_model_imports.py
-│   └──src/
-│      └── db/
-│          ├── __init__.py
-│          ├── utils.py
-│          ├── database.py
-│          └── pipelines/ 
-│              ├── __main__.py
-│              └── area_codes/
-│                  ├── __init__.py
-│                  ├── __main__.py
-│                  ├── area_codes_model.py
-│                  └── area_codes.py
-│              └── emissions_totals/
-│                  ├── __init__.py
-│                  ├── __main__.py
-│                  ├── emissions_totals_model.py
-│                  └── emissions_totals.py
-│              └── ...
-│      └── api/
-│          ├── __main__.py
-│          ├── __init__.py
-│          └── routers/ 
-│              ├── __main__.py
-│              └── core/
-│                  └── area_codes.py
-│              └── emissions_totals/
-│                  └── emissions_totals.py
-
-
+fao/
+├── src/
+│   ├── api/           # FastAPI application and routes
+│   │   ├── routers/   # Endpoint definitions by dataset
+│   │   └── __main__.py
+│   └── db/            # Database models and ETL
+│       ├── pipelines/ # ETL pipeline modules
+│       ├── database.py
+│       └── utils.py
+├── migrations/        # Alembic database migrations
+├── tests/            # Test suite (coming soon)
+└── docs/             # Additional documentation
 ```
-
-## Installation
-
-### Prerequisites
-- Python 3.10+
-- pip-tools
-
-### Setup
-
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd fao-api-codebase-generator
-   ```
-
-2. Initialize the environment:
-   ```bash
-   make initialize
-   ```
-
-   This will:
-   - Install pip-tools
-   - Compile requirements from `requirements.in`
-   - Install all dependencies
-
-3. Configure the ZIP path in [`generator/__init__.py`](generator/__init__.py):
-   ```python
-   ZIP_PATH = r"C:\path\to\your\fao\zip\files"
-   ```
-
-## Usage
-
-### Scanning FAO ZIP Files
-
-Use the [`FAOZipScanner`](generator/scanner.py) to analyze available datasets:
-
-```python
-from generator.scanner import FAOZipScanner
-
-scanner = FAOZipScanner("/path/to/fao/zips")
-results = scanner.scan_all_zips()
-
-for result in results:
-    print(f"Pipeline: {result['pipeline_name']}")
-    print(f"CSV files: {result['csv_files']}")
-```
-
-### Generating Pipeline Code
-
-Use the [`PipelineGenerator`](generator/generator.py) to create complete pipeline modules:
-
-```python
-from generator.scanner import FAOZipScanner
-from generator.generator import PipelineGenerator
-
-# Scan and generate all pipelines
-scanner = FAOZipScanner("/path/to/fao/zips")
-generator = PipelineGenerator()
-
-zip_info = scanner.scan_all_zips()
-generator.generate_all_pipelines(zip_info)
-```
-
-### Running Generated Pipelines
-
-Each generated pipeline is a complete Python module:
-
-```python
-# Run individual pipeline
-python -m db.pipelines.prices
-
-# Run specific module
-python -m db.pipelines.prices.prices
-```
-
-## Generated Code Structure
-
-Each pipeline includes:
-
-### `__init__.py`
-- CSV directory configuration
-- Utility functions like [`get_csv_path_for`](db/pipelines/prices/__init__.py)
-- Currency standardization functions (when applicable)
-
-### `__main__.py`
-- Pipeline execution entry point
-- Orchestrates all modules in the pipeline
-
-### Module files (e.g., `prices.py`)
-- **`load()`**: Loads CSV data using [`load_csv`](templates/module.py.jinja2)
-- **`clean()`**: Data validation and cleaning
-- **`insert()`**: Database insertion with conflict handling
-- **`run()`**: Complete ETL workflow
-
-## Templates
-
-The generator uses Jinja2 templates in the [`templates/`](templates/) directory:
-
-- [`__init__.py.jinja2`](templates/__init__.py.jinja2): Pipeline initialization with optional currency standardization
-- [`__main__.py.jinja2`](templates/__main__.py.jinja2): Main execution script
-- [`module.py.jinja2`](templates/module.py.jinja2): Individual data processing modules
-
-## Dependencies
-
-Core dependencies (see [`requirements.in`](requirements.in)):
-- **pandas**: Data processing and CSV handling
-- **jinja2**: Template engine for code generation
-- **click**: Command-line interface utilities
-- **rich**: Enhanced terminal output
-- **black**: Code formatting
 
 ## Development
 
-### Adding New Templates
+### Contributing
 
-1. Create a new `.jinja2` file in [`templates/`](templates/)
-2. Update [`PipelineGenerator.template_file_names`](generator/generator.py) if needed
-3. Modify generation logic in [`generator.py`](generator/generator.py)
+As this project is in active development, we welcome contributions! Please:
 
-### Modifying Generation Logic
+1. Check existing issues before creating new ones
+2. Follow the existing code style
+3. Write tests for new features
+4. Update documentation as needed
 
-Key methods in [`PipelineGenerator`](generator/generator.py):
-- [`_is_core_table()`](generator/generator.py): Identifies core/shared tables
-- [`_extract_module_name()`](generator/generator.py): Extracts module names from CSV filenames
-- [`_to_snake_case()`](generator/generator.py): Converts names to Python conventions
-
-### Build Commands
+### Running Tests
 
 ```bash
-# Update dependencies
-make requirements
-
-# Install dependencies only
-make install
-
-# Full initialization
-make initialize
+# Tests are being developed
+pytest tests/
 ```
 
-## FAO Dataset Support
+### Code Style
 
-The generator supports standard FAO dataset patterns:
-- `*_E_All_Data_(Normalized).csv` - Main data files
-- `*_E_AreaCodes.csv` - Area/country codes
-- `*_E_ItemCodes.csv` - Item/commodity codes
-- `*_E_Currencys.csv` - Currency codes
-- `*_E_Elements.csv` - Data element definitions
-- `*_E_Flags.csv` - Data flag definitions
+This project uses:
+- Black for code formatting
+- isort for import sorting
+- mypy for type checking (planned)
+
+## Roadmap
+
+### Phase 1 (Current)
+- [x] Basic API functionality
+- [x] Core datasets integration
+- [ ] Error handling improvements
+- [ ] Basic test coverage
+
+### Phase 2 (Next)
+- [ ] Authentication system
+- [ ] Rate limiting
+- [ ] Caching layer
+- [ ] Advanced query capabilities
+
+### Phase 3 (Future)
+- [ ] GraphQL endpoint
+- [ ] Bulk export functionality
+- [ ] Real-time data updates
+- [ ] Client SDKs
+
+## Known Issues
+
+- Large dataset queries may timeout
+- Some datasets have incomplete historical data
+- API keys not yet implemented
+- No request rate limiting
 
 ## License
 
-[Add your license information here]
+This project is currently under development. License terms will be added upon official release.
 
-## Contributing
+## Contact
 
-[Add contribution guidelines here]
+For questions about this project or the FAO data it serves:
+- Project Issues: [GitHub Issues](https://github.com/yourusername/fao-data-api/issues)
+- FAO Data Questions: [FAO Statistics](https://www.fao.org/statistics/en/)
+
+## Disclaimer
+
+This is an unofficial API interface to FAO public data. This project is not affiliated with or endorsed by the Food and Agriculture Organization of the United Nations. For official FAO data access, please visit [FAOSTAT](https://www.fao.org/faostat/).
+
+---
+
+**Note**: This README will be updated as the project evolves. Check back regularly for the latest information.

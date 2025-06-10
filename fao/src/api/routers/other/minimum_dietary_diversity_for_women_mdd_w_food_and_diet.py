@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
+from fao.src.core import settings
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.minimum_dietary_diversity_for_women_mdd_w_food_and_diet.minimum_dietary_diversity_for_women_mdd_w_food_and_diet_model import MinimumDietaryDiversityForWomenMddWFoodAndDiet
-# Import core/lookup tables for joins
+# Import core/reference tables for joins
 from fao.src.db.pipelines.surveys.surveys_model import Surveys
 from fao.src.db.pipelines.food_groups.food_groups_model import FoodGroups
 from fao.src.db.pipelines.indicators.indicators_model import Indicators
@@ -20,8 +21,8 @@ router = APIRouter(
 
 @router.get("/")
 def get_minimum_dietary_diversity_for_women_mdd_w_food_and_diet(
-    limit: int = Query(100, le=1000, ge=1, description="Maximum records to return"),
-    offset: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(settings.default_limit, le=settings.max_limit, ge=1, description="Maximum records to return"),
+    offset: int = Query(settings.default_offset, ge=0, description="Number of records to skip"),
     survey_code: Optional[str] = Query(None, description="Filter by surveys code"),
     survey: Optional[str] = Query(None, description="Filter by surveys description"),
     food_group_code: Optional[str] = Query(None, description="Filter by food_groups code"),

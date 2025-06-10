@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
-from fao.src.db.database import get_db
+from .....src.db.database import get_db
+from .....src.core import settings
 
 
 def load_sql(filename: str) -> str:
@@ -15,7 +16,7 @@ def load_sql(filename: str) -> str:
 
 
 router = APIRouter(
-    prefix="/v1/prices/analytics",
+    prefix=f"/{settings.api_version_prefix}/prices/analytics",
     tags=["prices", "analytics", "custom"],
 )
 
@@ -41,7 +42,7 @@ def compare_price_volatility(
     """
 
     # Load SQL from file
-    sql_query = load_sql_query("volatility_comparison.sql")
+    sql_query = load_sql("volatility_comparison.sql")
 
     result = db.execute(
         text(sql_query),

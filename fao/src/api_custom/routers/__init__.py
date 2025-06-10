@@ -1,9 +1,11 @@
 from .price_analytics import price_analytics_router
+from .price_lines import price_lines_router
+from .versions import versions_router
 
-# Export all custom routers as a list
 custom_routers = [
     price_analytics_router,
-    # Add more custom routers here as you create them
+    price_lines_router,
+    versions_router,
 ]
 
 __all__ = ["custom_routers"]

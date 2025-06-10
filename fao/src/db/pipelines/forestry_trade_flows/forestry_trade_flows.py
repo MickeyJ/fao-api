@@ -1,173 +1,83 @@
-# templates/dataset_module.py.jinja2
 import pandas as pd
-from sqlalchemy.orm import Session
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from fao.src.db.utils import load_csv, get_csv_path_for, generate_numeric_id, calculate_optimal_chunk_size
+from fao.src.db.utils import get_csv_path_for
 from fao.src.db.database import run_with_session
+from fao.src.db.pipelines.base import BaseDatasetETL
 from .forestry_trade_flows_model import ForestryTradeFlows
 
-# Dataset CSV file
-CSV_PATH = get_csv_path_for("Forestry_Trade_Flows_E_All_Data_(Normalized)/Forestry_Trade_Flows_E_All_Data_(Normalized).csv")
 
-table_name = "forestry_trade_flows"
-
-
-def load():
-    """Load the dataset CSV file"""
-    return load_csv(CSV_PATH)
-
-
-def clean(df: pd.DataFrame) -> pd.DataFrame:
-    """Clean and prepare dataset data"""
-    if df.empty:
-        print(f"No {table_name} data to clean.")
+class ForestryTradeFlowsETL(BaseDatasetETL):
+    """ETL pipeline for forestry_trade_flows dataset"""
+    
+    def __init__(self):
+        super().__init__(
+            csv_path=get_csv_path_for("Forestry_Trade_Flows_E_All_Data_(Normalized)/Forestry_Trade_Flows_E_All_Data_(Normalized).csv"),
+            model_class=ForestryTradeFlows,
+            table_name="forestry_trade_flows",
+            exclude_columns=["Element", "Element Code", "Flag", "Item", "Item Code"],
+            foreign_keys=[{"csv_column_name": "Item Code", "format_methods": [], "hash_columns": ["Item Code", "source_dataset"], "hash_fk_csv_column_name": "Item Code_id", "hash_fk_sql_column_name": "item_code_id", "hash_pk_sql_column_name": "id", "index_hash": "8a7cde21_item_codes", "model_name": "ItemCodes", "pipeline_name": "item_codes", "reference_additional_columns": ["item_code_cpc", "item_code_fbs", "item_code_sdg"], "reference_column_count": 6, "reference_description_column": "item", "reference_pk_csv_column": "Item Code", "sql_column_name": "item_code", "table_name": "item_codes"}, {"csv_column_name": "Element Code", "format_methods": [], "hash_columns": ["Element Code", "source_dataset"], "hash_fk_csv_column_name": "Element Code_id", "hash_fk_sql_column_name": "element_code_id", "hash_pk_sql_column_name": "id", "index_hash": "a8720d6e_elements", "model_name": "Elements", "pipeline_name": "elements", "reference_additional_columns": [], "reference_column_count": 3, "reference_description_column": "element", "reference_pk_csv_column": "Element Code", "sql_column_name": "element_code", "table_name": "elements"}, {"csv_column_name": "Flag", "format_methods": ["upper"], "hash_columns": ["Flag"], "hash_fk_csv_column_name": "Flag_id", "hash_fk_sql_column_name": "flag_id", "hash_pk_sql_column_name": "id", "index_hash": "b7fcfa0f_flags", "model_name": "Flags", "pipeline_name": "flags", "reference_additional_columns": [], "reference_column_count": 3, "reference_description_column": "description", "reference_pk_csv_column": "Flag", "sql_column_name": "flag", "table_name": "flags"}]
+        )
+    
+    def clean(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Dataset-specific cleaning"""
+        # Common cleaning first
+        df = self.base_clean(df)
+        
+        # Column-specific cleaning
+        # Reporter Country Code
+        df['Reporter Country Code'] = df['Reporter Country Code'].astype(str).str.strip().str.replace("'", "")
+        # Reporter Country Code (M49)
+        df['Reporter Country Code (M49)'] = df['Reporter Country Code (M49)'].astype(str).str.strip().str.replace("'", "")
+        # Reporter Countries
+        df['Reporter Countries'] = df['Reporter Countries'].astype(str).str.strip().str.replace("'", "")
+        # Partner Country Code
+        df['Partner Country Code'] = df['Partner Country Code'].astype(str).str.strip().str.replace("'", "")
+        # Partner Country Code (M49)
+        df['Partner Country Code (M49)'] = df['Partner Country Code (M49)'].astype(str).str.strip().str.replace("'", "")
+        # Partner Countries
+        df['Partner Countries'] = df['Partner Countries'].astype(str).str.strip().str.replace("'", "")
+        # Year Code
+        df['Year Code'] = df['Year Code'].astype(str).str.strip().str.replace("'", "")
+        # Year
+        df['Year'] = df['Year'].astype(str).str.strip().str.replace("'", "")
+        # Unit
+        df['Unit'] = df['Unit'].astype(str).str.strip().str.replace("'", "")
+        # Value
+        df['Value'] = df['Value'].astype(str).str.strip().str.replace("'", "")
+        df['Value'] = df['Value'].replace({'<0.1': 0.05, 'nan': None})
+        df['Value'] = pd.to_numeric(df['Value'], errors='coerce')
+        # Note
+        df['Note'] = df['Note'].astype(str).str.strip().str.replace("'", "")
+        
         return df
-
-    print(f"\nCleaning {table_name} data...")
-    initial_count = len(df)
-
-    # Replace 'nan' strings with None for ALL columns
-    df = df.replace({'nan': None, 'NaN': None, 'NAN': None})
-
     
-    # Basic column cleanup
-    df['Reporter Country Code'] = df['Reporter Country Code'].astype(str).str.strip().str.replace("'", "")
-        
-    df['Reporter Country Code (M49)'] = df['Reporter Country Code (M49)'].astype(str).str.strip().str.replace("'", "")
-        
-    df['Reporter Countries'] = df['Reporter Countries'].astype(str).str.strip().str.replace("'", "")
-        
-    df['Partner Country Code'] = df['Partner Country Code'].astype(str).str.strip().str.replace("'", "")
-        
-    df['Partner Country Code (M49)'] = df['Partner Country Code (M49)'].astype(str).str.strip().str.replace("'", "")
-        
-    df['Partner Countries'] = df['Partner Countries'].astype(str).str.strip().str.replace("'", "")
-        
-    df['Year Code'] = df['Year Code'].astype(str).str.strip().str.replace("'", "")
-        
-    df['Year'] = df['Year'].astype(str).str.strip().str.replace("'", "")
-        
-    df['Unit'] = df['Unit'].astype(str).str.strip().str.replace("'", "")
-        
-    df['Value'] = df['Value'].astype(str).str.strip().str.replace("'", "")
-        
-    df['Value'] = df['Value'].replace({'<0.1': 0.05, 'nan': None})
-    df['Value'] = pd.to_numeric(df['Value'], errors='coerce')
-    df['Flag'] = df['Flag'].str.upper()
-    df['Note'] = df['Note'].astype(str).str.strip().str.replace("'", "")
-        
-    
-    # Generate hash IDs for foreign key columns
-    dataset_name = "forestry_trade_flows"  # This dataset's name
-    
-    # Generate hash IDs for Item Code
-    df['item_code_id'] = df['Item Code'].apply(
-        lambda val: generate_numeric_id(
-            {
-                'Item Code': str(val),
-                'source_dataset': dataset_name,
-            },
-            ["Item Code", "source_dataset"]
-        ) if pd.notna(val) and str(val).strip() else None
-    )
-    # Generate hash IDs for Element Code
-    df['element_code_id'] = df['Element Code'].apply(
-        lambda val: generate_numeric_id(
-            {
-                'Element Code': str(val),
-                'source_dataset': dataset_name,
-            },
-            ["Element Code", "source_dataset"]
-        ) if pd.notna(val) and str(val).strip() else None
-    )
-    # Generate hash IDs for Flag
-    df['flag_id'] = df['Flag'].apply(
-        lambda val: generate_numeric_id(
-            {
-                'Flag': str(val),
-            },
-            ["Flag"]
-        ) if pd.notna(val) and str(val).strip() else None
-    )
-    
-    # Remove redundant columns that can be looked up via foreign keys
-    columns_to_drop = [col for col in ["Element", "Element Code", "Flag", "Item", "Item Code"] if col in df.columns]
-    if columns_to_drop:
-        df = df.drop(columns=columns_to_drop)
-        print(f"  Dropped redundant columns: {columns_to_drop}")
-    
-    # Remove complete duplicates
-    df = df.drop_duplicates()
-    
-    final_count = len(df)
-    print(f"  Cleaned: {initial_count} → {final_count} rows")
-    return df
+    def build_record(self, row: pd.Series) -> dict:
+        """Build record for insertion"""
+        record = {}
+        # Foreign key columns
+        record['item_code_id'] = row['item_code_id']
+        record['element_code_id'] = row['element_code_id']
+        record['flag_id'] = row['flag_id']
+        # Data columns
+        record['reporter_country_code'] = row['Reporter Country Code']
+        record['reporter_country_code_m49'] = row['Reporter Country Code (M49)']
+        record['reporter_countries'] = row['Reporter Countries']
+        record['partner_country_code'] = row['Partner Country Code']
+        record['partner_country_code_m49'] = row['Partner Country Code (M49)']
+        record['partner_countries'] = row['Partner Countries']
+        record['year_code'] = row['Year Code']
+        record['year'] = row['Year']
+        record['unit'] = row['Unit']
+        record['value'] = row['Value']
+        record['note'] = row['Note']
+        return record
 
 
-def insert(df: pd.DataFrame, session: Session):
-    """Insert dataset data with chunking for large files"""
-    if df.empty:
-        print(f"No {table_name} data to insert.")
-        return
-
-
-    # Calculate optimal chunk size for this dataset
-    chunk_size = calculate_optimal_chunk_size(df, base_chunk_size=20000)
-    print(f"\nInserting {table_name} data ({len(df):,} rows)")
-    print(f"  Using dynamic chunk size: {chunk_size:,} rows (based on {len(df.columns)} columns)")
-    
-    total_rows = len(df)
-    total_inserted = 0
-    
-    # Process in chunks
-    for chunk_idx, start_idx in enumerate(range(0, total_rows, chunk_size)):
-        end_idx = min(start_idx + chunk_size, total_rows)
-        chunk_df = df.iloc[start_idx:end_idx]
-        
-        records = []
-        for _, row in chunk_df.iterrows():
-            record = {}
-            # Add the hash ID columns
-            record['item_code_id'] = row['item_code_id']
-            record['element_code_id'] = row['element_code_id']
-            record['flag_id'] = row['flag_id']
-            record['reporter_country_code'] = row['Reporter Country Code']
-            record['reporter_country_code_m49'] = row['Reporter Country Code (M49)']
-            record['reporter_countries'] = row['Reporter Countries']
-            record['partner_country_code'] = row['Partner Country Code']
-            record['partner_country_code_m49'] = row['Partner Country Code (M49)']
-            record['partner_countries'] = row['Partner Countries']
-            record['year_code'] = row['Year Code']
-            record['year'] = row['Year']
-            record['unit'] = row['Unit']
-            record['value'] = row['Value']
-            record['note'] = row['Note']
-            records.append(record)
-        
-        if records:
-            try:
-                stmt = pg_insert(ForestryTradeFlows).values(records)
-                stmt = stmt.on_conflict_do_nothing()
-                result = session.execute(stmt)
-                session.commit()
-                
-                total_inserted += result.rowcount
-                print(f"  Chunk {chunk_idx + 1}: Inserted {result.rowcount} rows " +
-                      f"(Total: {total_inserted:,}/{total_rows:,})")
-            except Exception as e:
-                print(f"  ❌ Error in chunk {chunk_idx + 1}: {e}")
-                session.rollback()
-                raise
-    
-    print(f"✅ {table_name} insert complete: {total_inserted:,} rows inserted")
-
-
-def run(db):
-    """Run the complete ETL pipeline for this dataset"""
-    df = load()
-    df = clean(df)
-    insert(df, db)
-
+# Module-level functions for backwards compatibility
+etl = ForestryTradeFlowsETL()
+load = etl.load
+clean = etl.clean
+insert = etl.insert
+run = etl.run
 
 if __name__ == "__main__":
     run_with_session(run)

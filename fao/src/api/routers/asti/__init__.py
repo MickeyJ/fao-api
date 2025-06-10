@@ -1,11 +1,11 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .asti_expenditures import router as asti_expenditures
 from .asti_researchers import router as asti_researchers
 
 asti_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["asti"],
 )
 
@@ -26,12 +26,12 @@ asti_group_map = {
         {
             "name": "asti_expenditures",
             "description": "",
-            "path": f"/{ current_version_prefix }/asti/asti_expenditures",
+            "path": f"/{ settings.api_version_prefix }/asti/asti_expenditures",
         },
         {
             "name": "asti_researchers",
             "description": "",
-            "path": f"/{ current_version_prefix }/asti/asti_researchers",
+            "path": f"/{ settings.api_version_prefix }/asti/asti_researchers",
         },
     ],
 }

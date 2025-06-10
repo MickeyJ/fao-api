@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from ... import current_version_prefix
+from fao.src.core import settings
 
 from .food_groups import router as food_groups
 from .food_balance_sheets_historic import router as food_balance_sheets_historic
@@ -9,7 +9,7 @@ from .food_and_diet_individual_quantitative_dietary_data import router as food_a
 from .food_security_data import router as food_security_data
 
 food_api = APIRouter(
-  prefix=f"/{current_version_prefix}", 
+  prefix=f"/{settings.api_version_prefix}", 
   tags=["food"],
 )
 
@@ -50,32 +50,32 @@ food_group_map = {
         {
             "name": "food_groups",
             "description": "",
-            "path": f"/{ current_version_prefix }/food/food_groups",
+            "path": f"/{ settings.api_version_prefix }/food/food_groups",
         },
         {
             "name": "food_balance_sheets_historic",
             "description": "",
-            "path": f"/{ current_version_prefix }/food/food_balance_sheets_historic",
+            "path": f"/{ settings.api_version_prefix }/food/food_balance_sheets_historic",
         },
         {
             "name": "food_balance_sheets",
             "description": "",
-            "path": f"/{ current_version_prefix }/food/food_balance_sheets",
+            "path": f"/{ settings.api_version_prefix }/food/food_balance_sheets",
         },
         {
             "name": "food_aid_shipments_wfp",
             "description": "",
-            "path": f"/{ current_version_prefix }/food/food_aid_shipments_wfp",
+            "path": f"/{ settings.api_version_prefix }/food/food_aid_shipments_wfp",
         },
         {
             "name": "food_and_diet_individual_quantitative_dietary_data",
             "description": "",
-            "path": f"/{ current_version_prefix }/food/food_and_diet_individual_quantitative_dietary_data",
+            "path": f"/{ settings.api_version_prefix }/food/food_and_diet_individual_quantitative_dietary_data",
         },
         {
             "name": "food_security_data",
             "description": "",
-            "path": f"/{ current_version_prefix }/food/food_security_data",
+            "path": f"/{ settings.api_version_prefix }/food/food_security_data",
         },
     ],
 }

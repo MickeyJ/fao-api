@@ -22,7 +22,7 @@ class FoodGroups(Base):
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
     
-    # Composite indexes for lookup tables
+    # Composite indexes for reference tables
     __table_args__ = (
         Index("ix_food_gro_food_gro_src", 'food_group_code', 'source_dataset', unique=True),
     )
