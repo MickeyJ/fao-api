@@ -105,6 +105,7 @@ def get_multi_line_price_trends(
     # Build the query
     query = (
         select(
+            AreaCodes.id.label("area_id"),
             AreaCodes.area.label("area_name"),
             AreaCodes.area_code.label("area_code"),
             Prices.year,
@@ -169,6 +170,7 @@ def get_multi_line_price_trends(
         # Group by area
         if area_name not in data_by_area:
             data_by_area[area_name] = {
+                "area_id": row["area_id"],
                 "area_name": area_name,
                 "area_code": row["area_code"],
                 "currency": row["unit"],  # Using unit for now, will map to currency later
@@ -293,7 +295,8 @@ def get_available_data_for_item(
 
     query = (
         select(
-            AreaCodes.area.label("name"),
+            AreaCodes.id.label("area_id"),
+            AreaCodes.area.label("area_name"),
             AreaCodes.area_code.label("area_code"),
             func.min(Prices.year).label("earliest_year"),
             func.max(Prices.year).label("latest_year"),
@@ -312,7 +315,7 @@ def get_available_data_for_item(
                 Flags.flag == "A",
             )
         )
-        .group_by(AreaCodes.area, AreaCodes.area_code, Prices.unit)
+        .group_by(AreaCodes.id, AreaCodes.area, AreaCodes.area_code, Prices.unit)
         .order_by(func.count(Prices.year).desc())
     )
 
