@@ -115,7 +115,7 @@ PRICE_ELEMENT_CODE = "5532"
 @router.get("/data")
 def get_market_integration(
     item_code: str = Query(..., description="FAO item code"),
-    year_start: int = Query(2000, description="Start year"),  # Changed from 2010
+    year_start: int = Query(2005, description="Start year"),  # Changed from 2010
     area_codes: Optional[List[str]] = Query(None, description="Specific countries to analyze"),
     db: Session = Depends(get_db),
 ):
