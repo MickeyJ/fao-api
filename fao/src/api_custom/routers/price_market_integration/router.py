@@ -82,9 +82,9 @@ def calculate_price_correlation(time_series, current_metrics):
         correlation = 0.0
 
     # Determine integration level based on correlation
-    if correlation > 0.7:
+    if correlation > 0.67:
         correlation_integration = "high"
-    elif correlation > 0.3:
+    elif correlation > 0.33:
         correlation_integration = "moderate"
     else:
         correlation_integration = "none"
@@ -115,7 +115,7 @@ PRICE_ELEMENT_CODE = "5532"
 @router.get("/data")
 def get_market_integration(
     item_code: str = Query(..., description="FAO item code"),
-    year_start: int = Query(2005, description="Start year"),  # Changed from 2010
+    year_start: int = Query(2010, description="Start year"),  # Changed from 2010
     area_codes: Optional[List[str]] = Query(None, description="Specific countries to analyze"),
     db: Session = Depends(get_db),
 ):
