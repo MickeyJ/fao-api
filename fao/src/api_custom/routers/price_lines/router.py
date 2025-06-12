@@ -215,7 +215,7 @@ def get_multi_line_price_trends(
         "summary": summary,
         "currencies": list(units),  # Will be units for now
         "quantities": "Prices are likely in USD per metric ton",
-        "note": "Prices may show currency transitions/redenominations. Use caution when comparing across years.",
+        "note": "",
     }
 
 
