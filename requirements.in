@@ -4,6 +4,7 @@ dotenv
 jinja2
 sqlalchemy>=2.0
 alembic>=1.12
+alembic_utils
 psycopg2-binary>=2.9
 python-dotenv>=1.0
 
