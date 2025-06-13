@@ -15,6 +15,6 @@ JOIN elements e ON e.id = p.element_code_id
 JOIN flags f ON f.id = p.flag_id
 WHERE 
     e.element_code = '5532'  -- USD prices
-    AND f.flag = 'A'         -- Official figures only
+    AND f.flag != 'I'
     AND p.months_code = '7021'  -- Annual prices only
 ORDER BY ac.area_code, p.year;

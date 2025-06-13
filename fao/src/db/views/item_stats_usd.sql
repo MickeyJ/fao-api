@@ -17,7 +17,7 @@ JOIN flags f ON f.id = p.flag_id
 WHERE 
     e.element_code = '5532'  -- USD prices
     AND ic.source_dataset = 'prices'
-    AND f.flag = 'A'
+    AND f.flag != 'I'
     AND p.year >= 1990
 GROUP BY ic.id, ic.item, ic.item_code, ic.item_code_cpc
 HAVING 

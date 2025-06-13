@@ -22,7 +22,7 @@ JOIN exchange_rate er ON
     AND er.element_code_id = (SELECT id FROM elements WHERE element_code = 'LCU')
 WHERE 
     e.element_code = '5530'  -- LCU prices
-    AND f.flag = 'A'         -- Official figures only
+    AND f.flag != 'I'
     AND p.months_code = '7021'  -- Annual prices only
     AND er.value > 0         -- Valid exchange rates
     -- Exclude Euro countries during transition period
