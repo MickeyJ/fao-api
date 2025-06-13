@@ -8,6 +8,8 @@ from fao.all_model_imports import *
 from fao.src.db.system_models import *  # Add this line
 
 from alembic import context
+from alembic_utils.replaceable_entity import register_entities
+from fao.src.db.views import ALL_VIEWS  # or adjust import path as needed
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -23,6 +25,8 @@ if config.config_file_name is not None:
 
 
 target_metadata = Base.metadata
+
+register_entities(ALL_VIEWS)
 
 
 def run_migrations_offline() -> None:
