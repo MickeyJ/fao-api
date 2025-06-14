@@ -123,56 +123,53 @@ use-local-db-admin:
 
 
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
-#    Database Migrations (alembic)
+#    Database Setup/Update/ect.
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
-db-init:
-	@echo "Initialize Alembic"
-	alembic init migrations
-
-db-upgrade-local:
-	make use-local-db-admin
-	$(MAKE) NO-DIRECT-USE-db-upgrade db_type=LOCAL
-	make use-local-db
-
-db-revision-local:
-	make use-local-db-admin
-	$(MAKE) NO-DIRECT-USE-db-revision msg="${msg}" db_type=LOCAL
-	make use-local-db
-
-db-stamp-local:
-	make use-local-db-admin
-	$(MAKE) NO-DIRECT-USE-db-stamp db_type=LOCAL stamp="${stamp}"
-	$(MAKE) NO-DIRECT-USE-db-upgrade db_type=LOCAL
-	make use-local-db
-
-db-upgrade-remote:
-	make use-remote-db
-	$(MAKE) NO-DIRECT-USE-db-upgrade db_type=REMOTE
-	make use-local-db
-
-db-revision-remote:
-	make use-remote-db
-	$(MAKE) NO-DIRECT-USE-db-revision msg="${msg}" db_type=REMOTE
-	make use-local-db
-
-NO-DIRECT-USE-db-stamp:
-	@echo " "
-	@echo "Setting ${db_type} database to migration ${stamp}..."
-	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -c "DELETE FROM alembic_version;"
-	@echo " "
-	alembic stamp ${stamp}
-
-NO-DIRECT-USE-db-upgrade:
-	@echo " "
-	@echo "Upgrading ${db_type} database..."
-	alembic upgrade head
-
-NO-DIRECT-USE-db-revision:
-	@echo " "
-	@echo "Creating revision on ${db_type} database..."
-	alembic revision --autogenerate -m "${msg}" 
 
 
+# LOCAL
+db-update-local:
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-db-update host=local
+db-create-views-local:
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-db-create-views host=local
+db-refresh-views-local:
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-db-refresh-views host=local
+db-drop-views-local:
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-db-drop-views host=local
+
+
+# REMOTE
+db-update-remote:
+	$(MAKE) use-remote-db
+	$(MAKE) NO-DIRECT-USE-db-update host=remote
+db-create-views-remote:
+	$(MAKE) use-remote-db
+	$(MAKE) NO-DIRECT-USE-db-create-views host=remote
+db-refresh-views-remote:
+	$(MAKE) use-remote-db
+	$(MAKE) NO-DIRECT-USE-db-refresh-views host=remote
+db-drop-views-remote:
+	$(MAKE) use-remote-db
+	$(MAKE) NO-DIRECT-USE-db-drop-views host=remote
+
+
+# DONT USE DIRECTLY
+NO-DIRECT-USE-db-update:
+	@echo "Updating ${host} database"
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.setup update
+NO-DIRECT-USE-db-create-views:
+	@echo "Creating ${host} database views"
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.setup create-views
+NO-DIRECT-USE-db-refresh-views:
+	@echo "Refreshing ${host} database views"
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.setup refresh-views
+NO-DIRECT-USE-db-drop-views:
+	@echo "Dropping ${host} database views"
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.setup drop-views
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 # 			Database Modifications
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
@@ -200,6 +197,11 @@ clear-all-tables-local:
 	$(MAKE) NO-DIRECT-USE-clear-all-tables
 	make use-local-db
 
+enable-rls-db-remote:
+	make use-remote-db
+	$(MAKE) enable-rls
+	make use-local-db
+
 show-all-tables:
 	@echo "Showing all tables in the database..."
 	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/select_all_tables.sql
@@ -219,6 +221,11 @@ NO-DIRECT-USE-clear-all-tables:
 	@echo "Showing all tables in the database..."
 	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/clear_all_tables.sql
 
+
+
+NO-DIRECT-USE-enable-rls:
+	@echo "Enable RSL"
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/postgres" -f sql/enable_rls.sql
 
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 # 		 Terraform Commands

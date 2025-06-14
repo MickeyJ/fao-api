@@ -1,3 +1,5 @@
+DROP MATERIALIZED VIEW IF EXISTS price_details_lcu CASCADE;
+CREATE MATERIALIZED VIEW price_details_lcu AS
 SELECT 
     ac.id as area_id,
     ac.area as area_name,
@@ -30,4 +32,5 @@ WHERE
         ac.area_code IN ('11', '15', '67', '68', '79', '134', '106', '174', '203', '255', '256')
         AND p.year BETWEEN 1999 AND 2001
     )
-ORDER BY ac.area_code, p.year;
+ORDER BY ac.area_code, p.year
+WITH NO DATA;
