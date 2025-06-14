@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
@@ -14,6 +14,28 @@ from fao.src.db.pipelines.indicators.indicators_model import Indicators
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.sexs.sexs_model import Sexs
 from fao.src.db.pipelines.flags.flags_model import Flags
+
+# Import validation and exception functions
+from fao.src.core.validation import (
+    is_valid_survey_code,
+    is_valid_geographic_level_code,
+    is_valid_population_age_group_code,
+    is_valid_food_group_code,
+    is_valid_indicator_code,
+    is_valid_element_code,
+    is_valid_sex_code,
+    is_valid_flag,
+)
+from fao.src.core.exceptions import (
+    invalid_survey_code,
+    invalid_geographic_level_code,
+    invalid_population_age_group_code,
+    invalid_food_group_code,
+    invalid_indicator_code,
+    invalid_element_code,
+    invalid_sex_code,
+    invalid_flag,
+)
 
 router = APIRouter(
     prefix="/food_and_diet_individual_quantitative_dietary_data",
@@ -40,7 +62,6 @@ def get_food_and_diet_individual_quantitative_dietary_data(
     sex_code: Optional[str] = Query(None, description="Filter by sexs code"),
     sex: Optional[str] = Query(None, description="Filter by sexs description"),
     flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
     db: Session = Depends(get_db)
 ):
     """
@@ -61,8 +82,33 @@ def get_food_and_diet_individual_quantitative_dietary_data(
     - sex_code: Filter by sexs code
     - sex: Filter by sexs description (partial match)
     - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
     """
+    
+    # Validate parameters
+    if survey_code:
+        if not is_valid_survey_code(survey_code, db):
+            raise invalid_survey_code(survey_code)
+    if geographic_level_code:
+        if not is_valid_geographic_level_code(geographic_level_code, db):
+            raise invalid_geographic_level_code(geographic_level_code)
+    if population_age_group_code:
+        if not is_valid_population_age_group_code(population_age_group_code, db):
+            raise invalid_population_age_group_code(population_age_group_code)
+    if food_group_code:
+        if not is_valid_food_group_code(food_group_code, db):
+            raise invalid_food_group_code(food_group_code)
+    if indicator_code:
+        if not is_valid_indicator_code(indicator_code, db):
+            raise invalid_indicator_code(indicator_code)
+    if element_code:
+        if not is_valid_element_code(element_code, db):
+            raise invalid_element_code(element_code)
+    if sex_code:
+        if not is_valid_sex_code(sex_code, db):
+            raise invalid_sex_code(sex_code)
+    if flag:
+        if not is_valid_flag(flag, db):
+            raise invalid_flag(flag)
     
     query = (
         select(
@@ -82,7 +128,6 @@ def get_food_and_diet_individual_quantitative_dietary_data(
             Sexs.sex_code.label("sexs_code"),
             Sexs.sex.label("sexs_desc"),
             Flags.flag.label("flags_code"),
-            Flags.description.label("flags_desc"),
         )
         .select_from(FoodAndDietIndividualQuantitativeDietaryData)
         .outerjoin(Surveys, FoodAndDietIndividualQuantitativeDietaryData.survey_code_id == Surveys.id)
@@ -126,8 +171,6 @@ def get_food_and_diet_individual_quantitative_dietary_data(
         query = query.where(Sexs.sex.ilike("%" + sex + "%"))
     if flag:
         query = query.where(Flags.flag == flag)
-    if description:
-        query = query.where(Flags.description.ilike("%" + description + "%"))
    
     
     # Get total count (with filters)

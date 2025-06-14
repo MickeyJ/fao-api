@@ -20,8 +20,8 @@ from fao.src.core.error_handlers import (
 
 # Import all the routers
 from .routers.other import other_api
-from .routers.population import population_api
 from .routers.indicators import indicators_api
+from .routers.population import population_api
 from .routers.food import food_api
 from .routers.asti import asti_api
 from .routers.commodity import commodity_api
@@ -79,8 +79,8 @@ app.add_middleware(
 )
 
 app.include_router(other_api)
-app.include_router(population_api)
 app.include_router(indicators_api)
+app.include_router(population_api)
 app.include_router(food_api)
 app.include_router(asti_api)
 app.include_router(commodity_api)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
@@ -11,6 +11,22 @@ from fao.src.db.pipelines.food_groups.food_groups_model import FoodGroups
 from fao.src.db.pipelines.indicators.indicators_model import Indicators
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.flags.flags_model import Flags
+
+# Import validation and exception functions
+from fao.src.core.validation import (
+    is_valid_area_code,
+    is_valid_food_group_code,
+    is_valid_indicator_code,
+    is_valid_element_code,
+    is_valid_flag,
+)
+from fao.src.core.exceptions import (
+    invalid_area_code,
+    invalid_food_group_code,
+    invalid_indicator_code,
+    invalid_element_code,
+    invalid_flag,
+)
 
 router = APIRouter(
     prefix="/supply_utilization_accounts_food_and_diet",
@@ -31,7 +47,6 @@ def get_supply_utilization_accounts_food_and_diet(
     element_code: Optional[str] = Query(None, description="Filter by elements code"),
     element: Optional[str] = Query(None, description="Filter by elements description"),
     flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
     db: Session = Depends(get_db)
 ):
     """
@@ -46,8 +61,24 @@ def get_supply_utilization_accounts_food_and_diet(
     - element_code: Filter by elements code
     - element: Filter by elements description (partial match)
     - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
     """
+    
+    # Validate parameters
+    if area_code:
+        if not is_valid_area_code(area_code, db):
+            raise invalid_area_code(area_code)
+    if food_group_code:
+        if not is_valid_food_group_code(food_group_code, db):
+            raise invalid_food_group_code(food_group_code)
+    if indicator_code:
+        if not is_valid_indicator_code(indicator_code, db):
+            raise invalid_indicator_code(indicator_code)
+    if element_code:
+        if not is_valid_element_code(element_code, db):
+            raise invalid_element_code(element_code)
+    if flag:
+        if not is_valid_flag(flag, db):
+            raise invalid_flag(flag)
     
     query = (
         select(
@@ -61,7 +92,6 @@ def get_supply_utilization_accounts_food_and_diet(
             Elements.element_code.label("elements_code"),
             Elements.element.label("elements_desc"),
             Flags.flag.label("flags_code"),
-            Flags.description.label("flags_desc"),
         )
         .select_from(SupplyUtilizationAccountsFoodAndDiet)
         .outerjoin(AreaCodes, SupplyUtilizationAccountsFoodAndDiet.area_code_id == AreaCodes.id)
@@ -90,8 +120,6 @@ def get_supply_utilization_accounts_food_and_diet(
         query = query.where(Elements.element.ilike("%" + element + "%"))
     if flag:
         query = query.where(Flags.flag == flag)
-    if description:
-        query = query.where(Flags.description.ilike("%" + description + "%"))
    
     
     # Get total count (with filters)

@@ -5,14 +5,14 @@ from fao.src.db.database import run_with_session
 from .area_codes.__main__ import run_all as run_area_codes
 from .item_codes.__main__ import run_all as run_item_codes
 from .elements.__main__ import run_all as run_elements
-from .population_age_groups.__main__ import run_all as run_population_age_groups
-from .sexs.__main__ import run_all as run_sexs
 from .flags.__main__ import run_all as run_flags
 from .currencies.__main__ import run_all as run_currencies
 from .sources.__main__ import run_all as run_sources
-from .surveys.__main__ import run_all as run_surveys
 from .releases.__main__ import run_all as run_releases
+from .sexs.__main__ import run_all as run_sexs
 from .indicators.__main__ import run_all as run_indicators
+from .population_age_groups.__main__ import run_all as run_population_age_groups
+from .surveys.__main__ import run_all as run_surveys
 from .purposes.__main__ import run_all as run_purposes
 from .donors.__main__ import run_all as run_donors
 from .food_groups.__main__ import run_all as run_food_groups
@@ -133,14 +133,14 @@ def run_all_pipelines(db):
     run_area_codes(db)
     run_item_codes(db)
     run_elements(db)
-    run_population_age_groups(db)
-    run_sexs(db)
     run_flags(db)
     run_currencies(db)
     run_sources(db)
-    run_surveys(db)
     run_releases(db)
+    run_sexs(db)
     run_indicators(db)
+    run_population_age_groups(db)
+    run_surveys(db)
     run_purposes(db)
     run_donors(db)
     run_food_groups(db)

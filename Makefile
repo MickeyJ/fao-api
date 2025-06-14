@@ -140,6 +140,9 @@ db-refresh-views-local:
 db-drop-views-local:
 	$(MAKE) use-local-db
 	$(MAKE) NO-DIRECT-USE-db-drop-views host=local
+db-schema-diff-local:
+	$(MAKE) use-local-db-admin
+	$(MAKE) NO-DIRECT-USE-db-schema-diff host=local
 
 
 # REMOTE
@@ -155,6 +158,9 @@ db-refresh-views-remote:
 db-drop-views-remote:
 	$(MAKE) use-remote-db
 	$(MAKE) NO-DIRECT-USE-db-drop-views host=remote
+db-schema-diff-remote:
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-db-schema-diff host=remote
 
 
 # DONT USE DIRECTLY
@@ -170,6 +176,11 @@ NO-DIRECT-USE-db-refresh-views:
 NO-DIRECT-USE-db-drop-views:
 	@echo "Dropping ${host} database views"
 	$(ACTIVATE) $(PYTHON) -m fao.src.db.setup drop-views
+NO-DIRECT-USE-db-schema-diff:
+	@echo "Compare ${host} database schema with the codebase models"
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.schema_diff
+
+
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 # 			Database Modifications
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-

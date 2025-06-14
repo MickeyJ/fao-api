@@ -4,12 +4,12 @@ from fao.src.core import settings
 from .area_codes import router as area_codes
 from .item_codes import router as item_codes
 from .elements import router as elements
-from .sexs import router as sexs
 from .flags import router as flags
 from .currencies import router as currencies
 from .sources import router as sources
-from .surveys import router as surveys
 from .releases import router as releases
+from .sexs import router as sexs
+from .surveys import router as surveys
 from .purposes import router as purposes
 from .donors import router as donors
 from .geographic_levels import router as geographic_levels
@@ -50,11 +50,6 @@ other_api.include_router(
   tags=["other", "elements"],
 )
 other_api.include_router(
-  sexs, 
-  prefix=f"/other", 
-  tags=["other", "sexs"],
-)
-other_api.include_router(
   flags, 
   prefix=f"/other", 
   tags=["other", "flags"],
@@ -70,14 +65,19 @@ other_api.include_router(
   tags=["other", "sources"],
 )
 other_api.include_router(
-  surveys, 
-  prefix=f"/other", 
-  tags=["other", "surveys"],
-)
-other_api.include_router(
   releases, 
   prefix=f"/other", 
   tags=["other", "releases"],
+)
+other_api.include_router(
+  sexs, 
+  prefix=f"/other", 
+  tags=["other", "sexs"],
+)
+other_api.include_router(
+  surveys, 
+  prefix=f"/other", 
+  tags=["other", "surveys"],
 )
 other_api.include_router(
   purposes, 
@@ -189,11 +189,6 @@ other_group_map = {
             "path": f"/{ settings.api_version_prefix }/other/elements",
         },
         {
-            "name": "sexs",
-            "description": "",
-            "path": f"/{ settings.api_version_prefix }/other/sexs",
-        },
-        {
             "name": "flags",
             "description": "",
             "path": f"/{ settings.api_version_prefix }/other/flags",
@@ -209,14 +204,19 @@ other_group_map = {
             "path": f"/{ settings.api_version_prefix }/other/sources",
         },
         {
-            "name": "surveys",
-            "description": "",
-            "path": f"/{ settings.api_version_prefix }/other/surveys",
-        },
-        {
             "name": "releases",
             "description": "",
             "path": f"/{ settings.api_version_prefix }/other/releases",
+        },
+        {
+            "name": "sexs",
+            "description": "",
+            "path": f"/{ settings.api_version_prefix }/other/sexs",
+        },
+        {
+            "name": "surveys",
+            "description": "",
+            "path": f"/{ settings.api_version_prefix }/other/surveys",
         },
         {
             "name": "purposes",

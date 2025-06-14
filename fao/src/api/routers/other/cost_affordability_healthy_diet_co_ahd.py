@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
@@ -11,6 +11,20 @@ from fao.src.db.pipelines.item_codes.item_codes_model import ItemCodes
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.releases.releases_model import Releases
 from fao.src.db.pipelines.flags.flags_model import Flags
+
+# Import validation and exception functions
+from fao.src.core.validation import (
+    is_valid_area_code,
+    is_valid_item_code,
+    is_valid_element_code,
+    is_valid_flag,
+)
+from fao.src.core.exceptions import (
+    invalid_area_code,
+    invalid_item_code,
+    invalid_element_code,
+    invalid_flag,
+)
 
 router = APIRouter(
     prefix="/cost_affordability_healthy_diet_co_ahd",
@@ -31,7 +45,6 @@ def get_cost_affordability_healthy_diet_co_ahd(
     release_code: Optional[str] = Query(None, description="Filter by releases code"),
     release: Optional[str] = Query(None, description="Filter by releases description"),
     flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
     db: Session = Depends(get_db)
 ):
     """
@@ -46,8 +59,21 @@ def get_cost_affordability_healthy_diet_co_ahd(
     - release_code: Filter by releases code
     - release: Filter by releases description (partial match)
     - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
     """
+    
+    # Validate parameters
+    if area_code:
+        if not is_valid_area_code(area_code, db):
+            raise invalid_area_code(area_code)
+    if item_code:
+        if not is_valid_item_code(item_code, db):
+            raise invalid_item_code(item_code)
+    if element_code:
+        if not is_valid_element_code(element_code, db):
+            raise invalid_element_code(element_code)
+    if flag:
+        if not is_valid_flag(flag, db):
+            raise invalid_flag(flag)
     
     query = (
         select(
@@ -61,7 +87,6 @@ def get_cost_affordability_healthy_diet_co_ahd(
             Releases.release_code.label("releases_code"),
             Releases.release.label("releases_desc"),
             Flags.flag.label("flags_code"),
-            Flags.description.label("flags_desc"),
         )
         .select_from(CostAffordabilityHealthyDietCoAhd)
         .outerjoin(AreaCodes, CostAffordabilityHealthyDietCoAhd.area_code_id == AreaCodes.id)
@@ -90,8 +115,6 @@ def get_cost_affordability_healthy_diet_co_ahd(
         query = query.where(Releases.release.ilike("%" + release + "%"))
     if flag:
         query = query.where(Flags.flag == flag)
-    if description:
-        query = query.where(Flags.description.ilike("%" + description + "%"))
    
     
     # Get total count (with filters)

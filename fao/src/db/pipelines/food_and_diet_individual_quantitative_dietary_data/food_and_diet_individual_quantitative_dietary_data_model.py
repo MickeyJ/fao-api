@@ -32,7 +32,6 @@ class FoodAndDietIndividualQuantitativeDietaryData(Base):
     sex_code_id = Column(Integer, ForeignKey("sexs.id"), index=True)
     # Foreign key to flags
     flag_id = Column(Integer, ForeignKey("flags.id"), index=True)
-    population_age_group_code = Column(String, nullable=False, index=False)
     unit = Column(String(50), index=False)
     value = Column(Float, index=False)
     note = Column(String, nullable=False, index=False)

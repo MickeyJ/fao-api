@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
@@ -12,6 +12,24 @@ from fao.src.db.pipelines.indicators.indicators_model import Indicators
 from fao.src.db.pipelines.sexs.sexs_model import Sexs
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.flags.flags_model import Flags
+
+# Import validation and exception functions
+from fao.src.core.validation import (
+    is_valid_area_code,
+    is_valid_source_code,
+    is_valid_indicator_code,
+    is_valid_sex_code,
+    is_valid_element_code,
+    is_valid_flag,
+)
+from fao.src.core.exceptions import (
+    invalid_area_code,
+    invalid_source_code,
+    invalid_indicator_code,
+    invalid_sex_code,
+    invalid_element_code,
+    invalid_flag,
+)
 
 router = APIRouter(
     prefix="/employment_indicators_rural",
@@ -34,7 +52,6 @@ def get_employment_indicators_rural(
     element_code: Optional[str] = Query(None, description="Filter by elements code"),
     element: Optional[str] = Query(None, description="Filter by elements description"),
     flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
     db: Session = Depends(get_db)
 ):
     """
@@ -51,8 +68,27 @@ def get_employment_indicators_rural(
     - element_code: Filter by elements code
     - element: Filter by elements description (partial match)
     - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
     """
+    
+    # Validate parameters
+    if area_code:
+        if not is_valid_area_code(area_code, db):
+            raise invalid_area_code(area_code)
+    if source_code:
+        if not is_valid_source_code(source_code, db):
+            raise invalid_source_code(source_code)
+    if indicator_code:
+        if not is_valid_indicator_code(indicator_code, db):
+            raise invalid_indicator_code(indicator_code)
+    if sex_code:
+        if not is_valid_sex_code(sex_code, db):
+            raise invalid_sex_code(sex_code)
+    if element_code:
+        if not is_valid_element_code(element_code, db):
+            raise invalid_element_code(element_code)
+    if flag:
+        if not is_valid_flag(flag, db):
+            raise invalid_flag(flag)
     
     query = (
         select(
@@ -68,7 +104,6 @@ def get_employment_indicators_rural(
             Elements.element_code.label("elements_code"),
             Elements.element.label("elements_desc"),
             Flags.flag.label("flags_code"),
-            Flags.description.label("flags_desc"),
         )
         .select_from(EmploymentIndicatorsRural)
         .outerjoin(AreaCodes, EmploymentIndicatorsRural.area_code_id == AreaCodes.id)
@@ -102,8 +137,6 @@ def get_employment_indicators_rural(
         query = query.where(Elements.element.ilike("%" + element + "%"))
     if flag:
         query = query.where(Flags.flag == flag)
-    if description:
-        query = query.where(Flags.description.ilike("%" + description + "%"))
    
     
     # Get total count (with filters)

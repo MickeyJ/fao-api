@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
@@ -22,6 +22,8 @@ def get_donors(
     donors data with filters.
     Filter options:
     """
+    
+    # Validate parameters
     
     query = (
         select(

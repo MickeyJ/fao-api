@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
@@ -9,6 +9,18 @@ from fao.src.db.pipelines.food_aid_shipments_wfp.food_aid_shipments_wfp_model im
 from fao.src.db.pipelines.item_codes.item_codes_model import ItemCodes
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.flags.flags_model import Flags
+
+# Import validation and exception functions
+from fao.src.core.validation import (
+    is_valid_item_code,
+    is_valid_element_code,
+    is_valid_flag,
+)
+from fao.src.core.exceptions import (
+    invalid_item_code,
+    invalid_element_code,
+    invalid_flag,
+)
 
 router = APIRouter(
     prefix="/food_aid_shipments_wfp",
@@ -25,7 +37,6 @@ def get_food_aid_shipments_wfp(
     element_code: Optional[str] = Query(None, description="Filter by elements code"),
     element: Optional[str] = Query(None, description="Filter by elements description"),
     flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
     db: Session = Depends(get_db)
 ):
     """
@@ -36,8 +47,18 @@ def get_food_aid_shipments_wfp(
     - element_code: Filter by elements code
     - element: Filter by elements description (partial match)
     - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
     """
+    
+    # Validate parameters
+    if item_code:
+        if not is_valid_item_code(item_code, db):
+            raise invalid_item_code(item_code)
+    if element_code:
+        if not is_valid_element_code(element_code, db):
+            raise invalid_element_code(element_code)
+    if flag:
+        if not is_valid_flag(flag, db):
+            raise invalid_flag(flag)
     
     query = (
         select(
@@ -47,7 +68,6 @@ def get_food_aid_shipments_wfp(
             Elements.element_code.label("elements_code"),
             Elements.element.label("elements_desc"),
             Flags.flag.label("flags_code"),
-            Flags.description.label("flags_desc"),
         )
         .select_from(FoodAidShipmentsWfp)
         .outerjoin(ItemCodes, FoodAidShipmentsWfp.item_code_id == ItemCodes.id)
@@ -66,8 +86,6 @@ def get_food_aid_shipments_wfp(
         query = query.where(Elements.element.ilike("%" + element + "%"))
     if flag:
         query = query.where(Flags.flag == flag)
-    if description:
-        query = query.where(Flags.description.ilike("%" + description + "%"))
    
     
     # Get total count (with filters)

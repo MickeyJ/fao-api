@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
@@ -10,6 +10,20 @@ from fao.src.db.pipelines.area_codes.area_codes_model import AreaCodes
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.currencies.currencies_model import Currencies
 from fao.src.db.pipelines.flags.flags_model import Flags
+
+# Import validation and exception functions
+from fao.src.core.validation import (
+    is_valid_area_code,
+    is_valid_element_code,
+    is_valid_currency_code,
+    is_valid_flag,
+)
+from fao.src.core.exceptions import (
+    invalid_area_code,
+    invalid_element_code,
+    invalid_currency_code,
+    invalid_flag,
+)
 
 router = APIRouter(
     prefix="/exchange_rate",
@@ -28,7 +42,6 @@ def get_exchange_rate(
     iso_currency_code: Optional[str] = Query(None, description="Filter by currencies code"),
     currency: Optional[str] = Query(None, description="Filter by currencies description"),
     flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
     db: Session = Depends(get_db)
 ):
     """
@@ -41,8 +54,21 @@ def get_exchange_rate(
     - iso_currency_code: Filter by currencies code
     - currency: Filter by currencies description (partial match)
     - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
     """
+    
+    # Validate parameters
+    if area_code:
+        if not is_valid_area_code(area_code, db):
+            raise invalid_area_code(area_code)
+    if element_code:
+        if not is_valid_element_code(element_code, db):
+            raise invalid_element_code(element_code)
+    if iso_currency_code:
+        if not is_valid_currency_code(iso_currency_code, db):
+            raise invalid_currency_code(iso_currency_code)
+    if flag:
+        if not is_valid_flag(flag, db):
+            raise invalid_flag(flag)
     
     query = (
         select(
@@ -54,7 +80,6 @@ def get_exchange_rate(
             Currencies.iso_currency_code.label("currencies_code"),
             Currencies.currency.label("currencies_desc"),
             Flags.flag.label("flags_code"),
-            Flags.description.label("flags_desc"),
         )
         .select_from(ExchangeRate)
         .outerjoin(AreaCodes, ExchangeRate.area_code_id == AreaCodes.id)
@@ -78,8 +103,6 @@ def get_exchange_rate(
         query = query.where(Currencies.currency.ilike("%" + currency + "%"))
     if flag:
         query = query.where(Flags.flag == flag)
-    if description:
-        query = query.where(Flags.description.ilike("%" + description + "%"))
    
     
     # Get total count (with filters)

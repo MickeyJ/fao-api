@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
@@ -11,6 +11,22 @@ from fao.src.db.pipelines.item_codes.item_codes_model import ItemCodes
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.purposes.purposes_model import Purposes
 from fao.src.db.pipelines.flags.flags_model import Flags
+
+# Import validation and exception functions
+from fao.src.core.validation import (
+    is_valid_donor_code,
+    is_valid_item_code,
+    is_valid_element_code,
+    is_valid_purpose_code,
+    is_valid_flag,
+)
+from fao.src.core.exceptions import (
+    invalid_donor_code,
+    invalid_item_code,
+    invalid_element_code,
+    invalid_purpose_code,
+    invalid_flag,
+)
 
 router = APIRouter(
     prefix="/development_assistance_to_agriculture",
@@ -31,7 +47,6 @@ def get_development_assistance_to_agriculture(
     purpose_code: Optional[str] = Query(None, description="Filter by purposes code"),
     purpose: Optional[str] = Query(None, description="Filter by purposes description"),
     flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
     db: Session = Depends(get_db)
 ):
     """
@@ -46,8 +61,24 @@ def get_development_assistance_to_agriculture(
     - purpose_code: Filter by purposes code
     - purpose: Filter by purposes description (partial match)
     - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
     """
+    
+    # Validate parameters
+    if donor_code:
+        if not is_valid_donor_code(donor_code, db):
+            raise invalid_donor_code(donor_code)
+    if item_code:
+        if not is_valid_item_code(item_code, db):
+            raise invalid_item_code(item_code)
+    if element_code:
+        if not is_valid_element_code(element_code, db):
+            raise invalid_element_code(element_code)
+    if purpose_code:
+        if not is_valid_purpose_code(purpose_code, db):
+            raise invalid_purpose_code(purpose_code)
+    if flag:
+        if not is_valid_flag(flag, db):
+            raise invalid_flag(flag)
     
     query = (
         select(
@@ -61,7 +92,6 @@ def get_development_assistance_to_agriculture(
             Purposes.purpose_code.label("purposes_code"),
             Purposes.purpose.label("purposes_desc"),
             Flags.flag.label("flags_code"),
-            Flags.description.label("flags_desc"),
         )
         .select_from(DevelopmentAssistanceToAgriculture)
         .outerjoin(Donors, DevelopmentAssistanceToAgriculture.donor_code_id == Donors.id)
@@ -90,8 +120,6 @@ def get_development_assistance_to_agriculture(
         query = query.where(Purposes.purpose.ilike("%" + purpose + "%"))
     if flag:
         query = query.where(Flags.flag == flag)
-    if description:
-        query = query.where(Flags.description.ilike("%" + description + "%"))
    
     
     # Get total count (with filters)

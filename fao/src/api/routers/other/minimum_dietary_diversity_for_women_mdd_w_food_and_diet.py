@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_, text
 from typing import Optional
@@ -12,6 +12,24 @@ from fao.src.db.pipelines.indicators.indicators_model import Indicators
 from fao.src.db.pipelines.geographic_levels.geographic_levels_model import GeographicLevels
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.flags.flags_model import Flags
+
+# Import validation and exception functions
+from fao.src.core.validation import (
+    is_valid_survey_code,
+    is_valid_food_group_code,
+    is_valid_indicator_code,
+    is_valid_geographic_level_code,
+    is_valid_element_code,
+    is_valid_flag,
+)
+from fao.src.core.exceptions import (
+    invalid_survey_code,
+    invalid_food_group_code,
+    invalid_indicator_code,
+    invalid_geographic_level_code,
+    invalid_element_code,
+    invalid_flag,
+)
 
 router = APIRouter(
     prefix="/minimum_dietary_diversity_for_women_mdd_w_food_and_diet",
@@ -34,7 +52,6 @@ def get_minimum_dietary_diversity_for_women_mdd_w_food_and_diet(
     element_code: Optional[str] = Query(None, description="Filter by elements code"),
     element: Optional[str] = Query(None, description="Filter by elements description"),
     flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
     db: Session = Depends(get_db)
 ):
     """
@@ -51,8 +68,27 @@ def get_minimum_dietary_diversity_for_women_mdd_w_food_and_diet(
     - element_code: Filter by elements code
     - element: Filter by elements description (partial match)
     - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
     """
+    
+    # Validate parameters
+    if survey_code:
+        if not is_valid_survey_code(survey_code, db):
+            raise invalid_survey_code(survey_code)
+    if food_group_code:
+        if not is_valid_food_group_code(food_group_code, db):
+            raise invalid_food_group_code(food_group_code)
+    if indicator_code:
+        if not is_valid_indicator_code(indicator_code, db):
+            raise invalid_indicator_code(indicator_code)
+    if geographic_level_code:
+        if not is_valid_geographic_level_code(geographic_level_code, db):
+            raise invalid_geographic_level_code(geographic_level_code)
+    if element_code:
+        if not is_valid_element_code(element_code, db):
+            raise invalid_element_code(element_code)
+    if flag:
+        if not is_valid_flag(flag, db):
+            raise invalid_flag(flag)
     
     query = (
         select(
@@ -68,7 +104,6 @@ def get_minimum_dietary_diversity_for_women_mdd_w_food_and_diet(
             Elements.element_code.label("elements_code"),
             Elements.element.label("elements_desc"),
             Flags.flag.label("flags_code"),
-            Flags.description.label("flags_desc"),
         )
         .select_from(MinimumDietaryDiversityForWomenMddWFoodAndDiet)
         .outerjoin(Surveys, MinimumDietaryDiversityForWomenMddWFoodAndDiet.survey_code_id == Surveys.id)
@@ -102,8 +137,6 @@ def get_minimum_dietary_diversity_for_women_mdd_w_food_and_diet(
         query = query.where(Elements.element.ilike("%" + element + "%"))
     if flag:
         query = query.where(Flags.flag == flag)
-    if description:
-        query = query.where(Flags.description.ilike("%" + description + "%"))
    
     
     # Get total count (with filters)

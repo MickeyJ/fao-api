@@ -1,8 +1,8 @@
 current_version_prefix = "v1"
 
 from .routers.other import other_group_map      
-from .routers.population import population_group_map      
 from .routers.indicators import indicators_group_map      
+from .routers.population import population_group_map      
 from .routers.food import food_group_map      
 from .routers.asti import asti_group_map      
 from .routers.commodity import commodity_group_map      
@@ -23,8 +23,8 @@ api_map = {
     "redoc": "/redoc",
     "endpoints": {
         "other": other_group_map,
-        "population": population_group_map,
         "indicators": indicators_group_map,
+        "population": population_group_map,
         "food": food_group_map,
         "asti": asti_group_map,
         "commodity": commodity_group_map,
