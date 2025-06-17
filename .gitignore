@@ -92,3 +92,7 @@ override.tf.json
 # macOS / Linux / Windows system files
 .DS_Store
 Thumbs.db
+
+
+# exclude specific files or directories
+fao_db_migration.sh

@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class Sexs(Base):
     __tablename__ = "sexs"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     sex_code = Column(String, nullable=False, index=False)
     sex = Column(String, nullable=False, index=False)

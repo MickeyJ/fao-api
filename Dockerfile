@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy your application code
 COPY fao/ ./fao/
+COPY static/ ./static/
 COPY alembic.ini .
 COPY migrations/ ./migrations/
 

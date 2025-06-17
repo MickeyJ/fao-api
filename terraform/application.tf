@@ -84,10 +84,13 @@ resource "aws_apprunner_service" "food_data_api" {
           DB_PORT = "5432"
           DB_NAME = "postgres"
           DB_USER = "postgres.rltlqzgjokukrrpqqvre"
+          REDIS_HOST = "romantic-swine-11670.upstash.io"
+          REDIS_PORT = "6379"
         }
 
         runtime_environment_secrets = {
           DB_PASSWORD = aws_ssm_parameter.supabase_password.arn
+          REDIS_PASSWORD = aws_ssm_parameter.redis_password.arn
         }
       }
       image_identifier      = "${aws_ecr_repository.food_data_api.repository_url}:latest"

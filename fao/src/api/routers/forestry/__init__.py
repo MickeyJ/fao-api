@@ -7,23 +7,23 @@ from .forestry_trade_flows import router as forestry_trade_flows
 
 forestry_api = APIRouter(
   prefix=f"/{settings.api_version_prefix}", 
-  tags=["forestry"],
+  # tags=["forestry"],
 )
 
 forestry_api.include_router(
   forestry, 
   prefix=f"/forestry", 
-  tags=["forestry", "forestry"],
+  tags=["forestry"],
 )
 forestry_api.include_router(
   forestry_pulp_paper_survey, 
   prefix=f"/forestry", 
-  tags=["forestry", "forestry_pulp_paper_survey"],
+  tags=["forestry_pulp_paper_survey"],
 )
 forestry_api.include_router(
   forestry_trade_flows, 
   prefix=f"/forestry", 
-  tags=["forestry", "forestry_trade_flows"],
+  tags=["forestry_trade_flows"],
 )
 
 forestry_group_map = {

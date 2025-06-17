@@ -14,6 +14,8 @@ from .routers.inputs import inputs_group_map
 from .routers.investment import investment_group_map      
 from .routers.prices import prices_group_map      
 from .routers.production import production_group_map      
+from .routers.trade import trade_group_map      
+from .routers.value import value_group_map      
 
 api_map = {
     "api_name": "FAO API",
@@ -36,5 +38,7 @@ api_map = {
         "investment": investment_group_map,
         "prices": prices_group_map,
         "production": production_group_map,
+        "trade": trade_group_map,
+        "value": value_group_map,
     },
 }

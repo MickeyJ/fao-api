@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class Currencies(Base):
     __tablename__ = "currencies"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     iso_currency_code = Column(String, nullable=False, index=False)
     currency = Column(String, nullable=False, index=False)

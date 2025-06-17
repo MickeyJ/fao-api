@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class PopulationAgeGroups(Base):
     __tablename__ = "population_age_groups"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     population_age_group_code = Column(String, nullable=False, index=False)
     population_age_group = Column(String, nullable=False, index=False)

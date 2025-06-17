@@ -13,8 +13,8 @@ class FoodAidShipmentsWfpETL(BaseDatasetETL):
             csv_path=get_csv_path_for("Food_Aid_Shipments_WFP_E_All_Data_(Normalized)/Food_Aid_Shipments_WFP_E_All_Data_(Normalized).csv"),
             model_class=FoodAidShipmentsWfp,
             table_name="food_aid_shipments_wfp",
-            exclude_columns=["Element", "Element Code", "Flag", "Item", "Item Code"],
-            foreign_keys=[{"csv_column_name": "Item Code", "exception_func": "invalid_item_code", "format_methods": [], "hash_columns": ["Item Code", "source_dataset"], "hash_fk_csv_column_name": "Item Code_id", "hash_fk_sql_column_name": "item_code_id", "hash_pk_sql_column_name": "id", "index_hash": "1a8f2e45_item_codes", "model_name": "ItemCodes", "pipeline_name": "item_codes", "reference_additional_columns": ["item_code_cpc", "item_code_fbs", "item_code_sdg"], "reference_column_count": 6, "reference_description_column": "item", "reference_pk_csv_column": "Item Code", "sql_column_name": "item_code", "table_name": "item_codes", "validation_func": "is_valid_item_code"}, {"csv_column_name": "Element Code", "exception_func": "invalid_element_code", "format_methods": [], "hash_columns": ["Element Code", "source_dataset"], "hash_fk_csv_column_name": "Element Code_id", "hash_fk_sql_column_name": "element_code_id", "hash_pk_sql_column_name": "id", "index_hash": "2e50dc94_elements", "model_name": "Elements", "pipeline_name": "elements", "reference_additional_columns": [], "reference_column_count": 3, "reference_description_column": "element", "reference_pk_csv_column": "Element Code", "sql_column_name": "element_code", "table_name": "elements", "validation_func": "is_valid_element_code"}, {"csv_column_name": "Flag", "exception_func": "invalid_flag", "format_methods": ["upper"], "hash_columns": ["Flag"], "hash_fk_csv_column_name": "Flag_id", "hash_fk_sql_column_name": "flag_id", "hash_pk_sql_column_name": "id", "index_hash": "7143c7b3_flags", "model_name": "Flags", "pipeline_name": "flags", "reference_additional_columns": [], "reference_column_count": 3, "reference_description_column": null, "reference_pk_csv_column": "Flag", "sql_column_name": "flag", "table_name": "flags", "validation_func": "is_valid_flag"}]
+            exclude_columns=["Element", "Element Code", "Flag", "Item", "Item Code", "Recipient Country", "Recipient Country Code", "Recipient Country Code (M49)"],
+            foreign_keys=[{"csv_column_name": "Recipient Country Code", "exception_func": "invalid_recipient_country_code", "format_methods": [], "hash_columns": ["Recipient Country Code", "source_dataset"], "hash_fk_csv_column_name": "Recipient Country Code_id", "hash_fk_sql_column_name": "recipient_country_code_id", "hash_pk_sql_column_name": "id", "index_hash": "ce21455a_recipient_country_codes", "model_name": "RecipientCountryCodes", "pipeline_name": "recipient_country_codes", "reference_additional_columns": ["recipient_country_code_m49"], "reference_column_count": 4, "reference_description_column": "recipient_country", "reference_pk_csv_column": "Recipient Country Code", "sql_column_name": "recipient_country_code", "table_name": "recipient_country_codes", "validation_func": "is_valid_recipient_country_code"}, {"csv_column_name": "Item Code", "exception_func": "invalid_item_code", "format_methods": [], "hash_columns": ["Item Code", "source_dataset"], "hash_fk_csv_column_name": "Item Code_id", "hash_fk_sql_column_name": "item_code_id", "hash_pk_sql_column_name": "id", "index_hash": "1a8f2e45_item_codes", "model_name": "ItemCodes", "pipeline_name": "item_codes", "reference_additional_columns": ["item_code_cpc", "item_code_fbs", "item_code_sdg"], "reference_column_count": 6, "reference_description_column": "item", "reference_pk_csv_column": "Item Code", "sql_column_name": "item_code", "table_name": "item_codes", "validation_func": "is_valid_item_code"}, {"csv_column_name": "Element Code", "exception_func": "invalid_element_code", "format_methods": [], "hash_columns": ["Element Code", "source_dataset"], "hash_fk_csv_column_name": "Element Code_id", "hash_fk_sql_column_name": "element_code_id", "hash_pk_sql_column_name": "id", "index_hash": "2e50dc94_elements", "model_name": "Elements", "pipeline_name": "elements", "reference_additional_columns": [], "reference_column_count": 3, "reference_description_column": "element", "reference_pk_csv_column": "Element Code", "sql_column_name": "element_code", "table_name": "elements", "validation_func": "is_valid_element_code"}, {"csv_column_name": "Flag", "exception_func": "invalid_flag", "format_methods": ["upper"], "hash_columns": ["Flag"], "hash_fk_csv_column_name": "Flag_id", "hash_fk_sql_column_name": "flag_id", "hash_pk_sql_column_name": "id", "index_hash": "7143c7b3_flags", "model_name": "Flags", "pipeline_name": "flags", "reference_additional_columns": [], "reference_column_count": 3, "reference_description_column": "description", "reference_pk_csv_column": "Flag", "sql_column_name": "flag", "table_name": "flags", "validation_func": "is_valid_flag"}]
         )
     
     def clean(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -23,12 +23,6 @@ class FoodAidShipmentsWfpETL(BaseDatasetETL):
         df = self.base_clean(df)
         
         # Column-specific cleaning
-        # Recipient Country Code
-        df['Recipient Country Code'] = df['Recipient Country Code'].astype(str).str.strip().str.replace("'", "")
-        # Recipient Country Code (M49)
-        df['Recipient Country Code (M49)'] = df['Recipient Country Code (M49)'].astype(str).str.strip().str.replace("'", "")
-        # Recipient Country
-        df['Recipient Country'] = df['Recipient Country'].astype(str).str.strip().str.replace("'", "")
         # Year Code
         df['Year Code'] = df['Year Code'].astype(str).str.strip().str.replace("'", "")
         # Year
@@ -48,13 +42,11 @@ class FoodAidShipmentsWfpETL(BaseDatasetETL):
         """Build record for insertion"""
         record = {}
         # Foreign key columns
+        record['recipient_country_code_id'] = row['recipient_country_code_id']
         record['item_code_id'] = row['item_code_id']
         record['element_code_id'] = row['element_code_id']
         record['flag_id'] = row['flag_id']
         # Data columns
-        record['recipient_country_code'] = row['Recipient Country Code']
-        record['recipient_country_code_m49'] = row['Recipient Country Code (M49)']
-        record['recipient_country'] = row['Recipient Country']
         record['year_code'] = row['Year Code']
         record['year'] = row['Year']
         record['unit'] = row['Unit']

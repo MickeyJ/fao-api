@@ -28,16 +28,13 @@ else
     PYTHON = python
 endif
 
-.PHONY: all venv env-status initialize requirements install \
+.PHONY: all venv env-status install-init install install-update install-requirements \
 	run-api-local run-api-remote run-all-pipelines-local run-all-pipelines-remote \
-	use-remote-db use-local-db use-local-db-admin db-init db-upgrade-local db-revision-local \
-	db-stamp-local db-upgrade-remote db-revision-remote create-db-local-admin drop-db-local-admin \
-	clear-all-tables-local show-all-tables tf-fmt tf-validate tf-plan tf-apply \
-	NO-DIRECT-USE-run-api NO-DIRECT-USE-run-all-pipelines \
-	NO-DIRECT-USE-db-upgrade NO-DIRECT-USE-db-revision NO-DIRECT-USE-db-stamp \
-	NO-DIRECT-USE-create-db NO-DIRECT-USE-drop-db NO-DIRECT-USE-reset-db \
-	NO-DIRECT-USE-clear-all-tables
-
+	use-remote-db use-local-db use-local-db-admin db-update-local db-create-views-local \
+	db-refresh-views-local db-drop-views-local db-schema-diff-local db-update-remote \
+	db-create-views-remote db-refresh-views-remote db-drop-views-remote db-schema-diff-remote \
+	create-db-local-admin drop-db-local-admin clear-all-tables-local enable-rls-db-remote \
+	show-all-tables tf-fmt tf-validate tf-plan tf-apply
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 #  			Python Environment
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
@@ -51,19 +48,24 @@ env-status:
 	@echo "=== Environment Status ==="
 	$(ACTIVATE) echo "Python: $$(which $(PYTHON))"
 
-# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
-# 		Package Installation
-# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
-initialize:
+# =-=-=--=-=-=-=-=-=-=
+# Package Installation
+# =-=-=--=-=-=-=-=-=-=
+install-init:
 	$(ACTIVATE) $(PYTHON) -m pip install pip-tools
 	$(ACTIVATE) $(PYTHON) -m piptools compile requirements.in
 	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
 
-requirements:
+install:
+	grep "^${pkg}" requirements.in || (echo "" >> requirements.in && echo "${pkg}" >> requirements.in)
 	$(ACTIVATE) $(PYTHON) -m piptools compile requirements.in
 	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
 
-install:
+install-update:
+	$(ACTIVATE) $(PYTHON) -m piptools compile requirements.in
+	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
+
+install-requirements:
 	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
 
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
@@ -90,19 +92,17 @@ NO-DIRECT-USE-run-api:
 # 			Pipeline commands
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 run-all-pipelines-local:
-	make use-local-db
-	@echo " "
-	@echo "Running pipeline on LOCAL database..."
-	$(MAKE) NO-DIRECT-USE-run-all-pipelines
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-run-all-pipelines host=local
 
 run-all-pipelines-remote:
 	make use-remote-db
-	@echo " "
-	@echo "Running pipeline on REMOTE database..."
-	$(MAKE) NO-DIRECT-USE-run-all-pipelines
+	$(MAKE) NO-DIRECT-USE-run-all-pipelines host=remote
 	make use-local-db
 
 NO-DIRECT-USE-run-all-pipelines:
+	@echo " "
+	@echo "Running pipeline on ${host} database..."
 	$(ACTIVATE) $(PYTHON) -m fao.src.db.pipelines
 
 
@@ -185,7 +185,7 @@ NO-DIRECT-USE-db-schema-diff:
 # 			Database Modifications
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 create-db-local-admin:
-	make use-local-db-admin
+	make use-local-db
 	@echo " "
 	@echo "Creating local database 'fao'..."
 	$(MAKE) NO-DIRECT-USE-create-db

@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class ItemCodes(Base):
     __tablename__ = "item_codes"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     item_code = Column(String, nullable=False, index=False)
     item = Column(String, nullable=False, index=False)

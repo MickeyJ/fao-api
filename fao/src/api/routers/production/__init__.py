@@ -6,18 +6,18 @@ from .production_indices import router as production_indices
 
 production_api = APIRouter(
   prefix=f"/{settings.api_version_prefix}", 
-  tags=["production"],
+  # tags=["production"],
 )
 
 production_api.include_router(
   production_crops_livestock, 
   prefix=f"/production", 
-  tags=["production", "production_crops_livestock"],
+  tags=["production_crops_livestock"],
 )
 production_api.include_router(
   production_indices, 
   prefix=f"/production", 
-  tags=["production", "production_indices"],
+  tags=["production_indices"],
 )
 
 production_group_map = {

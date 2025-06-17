@@ -6,18 +6,18 @@ from .population import router as population
 
 population_api = APIRouter(
   prefix=f"/{settings.api_version_prefix}", 
-  tags=["population"],
+  # tags=["population"],
 )
 
 population_api.include_router(
   population_age_groups, 
   prefix=f"/population", 
-  tags=["population", "population_age_groups"],
+  tags=["population_age_groups"],
 )
 population_api.include_router(
   population, 
   prefix=f"/population", 
-  tags=["population", "population"],
+  tags=["population"],
 )
 
 population_group_map = {

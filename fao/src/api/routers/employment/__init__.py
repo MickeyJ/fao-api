@@ -6,18 +6,18 @@ from .employment_indicators_rural import router as employment_indicators_rural
 
 employment_api = APIRouter(
   prefix=f"/{settings.api_version_prefix}", 
-  tags=["employment"],
+  # tags=["employment"],
 )
 
 employment_api.include_router(
   employment_indicators_agriculture, 
   prefix=f"/employment", 
-  tags=["employment", "employment_indicators_agriculture"],
+  tags=["employment_indicators_agriculture"],
 )
 employment_api.include_router(
   employment_indicators_rural, 
   prefix=f"/employment", 
-  tags=["employment", "employment_indicators_rural"],
+  tags=["employment_indicators_rural"],
 )
 
 employment_group_map = {

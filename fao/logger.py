@@ -14,7 +14,7 @@ logger.add(
 )
 
 # Add file handler with rotation
-log_path = Path("genlogs")
+log_path = Path("logs")
 log_path.mkdir(exist_ok=True)
 
 logger.add(

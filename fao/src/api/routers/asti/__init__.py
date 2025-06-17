@@ -6,18 +6,18 @@ from .asti_researchers import router as asti_researchers
 
 asti_api = APIRouter(
   prefix=f"/{settings.api_version_prefix}", 
-  tags=["asti"],
+  # tags=["asti"],
 )
 
 asti_api.include_router(
   asti_expenditures, 
   prefix=f"/asti", 
-  tags=["asti", "asti_expenditures"],
+  tags=["asti_expenditures"],
 )
 asti_api.include_router(
   asti_researchers, 
   prefix=f"/asti", 
-  tags=["asti", "asti_researchers"],
+  tags=["asti_researchers"],
 )
 
 asti_group_map = {

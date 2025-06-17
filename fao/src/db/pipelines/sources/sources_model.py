@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class Sources(Base):
     __tablename__ = "sources"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     source_code = Column(String, nullable=False, index=False)
     source = Column(String, nullable=False, index=False)

@@ -6,18 +6,18 @@ from .indicators_from_household_surveys import router as indicators_from_househo
 
 indicators_api = APIRouter(
   prefix=f"/{settings.api_version_prefix}", 
-  tags=["indicators"],
+  # tags=["indicators"],
 )
 
 indicators_api.include_router(
   indicators, 
   prefix=f"/indicators", 
-  tags=["indicators", "indicators"],
+  tags=["indicators"],
 )
 indicators_api.include_router(
   indicators_from_household_surveys, 
   prefix=f"/indicators", 
-  tags=["indicators", "indicators_from_household_surveys"],
+  tags=["indicators_from_household_surveys"],
 )
 
 indicators_group_map = {

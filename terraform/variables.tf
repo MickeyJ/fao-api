@@ -4,3 +4,7 @@ variable "db_password" {
   sensitive = true
 }
 
+variable "redis_password" {
+  type      = string
+  sensitive = true
+}
