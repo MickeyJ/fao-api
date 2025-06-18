@@ -390,11 +390,10 @@ def get_available_areas(db: Session = Depends(get_db)):
         select(
             AreaCodes.area_code,
             AreaCodes.area,
-            func.count(Aquastat.id).label('record_count')
+            AreaCodes.area_code_m49,
         )
-        .join(Aquastat, AreaCodes.id == Aquastat.area_code_id)
-        .group_by(AreaCodes.area_code, AreaCodes.area)
-        .order_by(func.count(Aquastat.id).desc())
+        .where(AreaCodes.source_dataset == 'aquastat')
+        .order_by(AreaCodes.area_code)
     )
     
     results = db.execute(query).all()
@@ -406,11 +405,12 @@ def get_available_areas(db: Session = Depends(get_db)):
             {
                 "area_code": r.area_code,
                 "area": r.area,
-                "record_count": r.record_count
+                "area_code_m49": r.area_code_m49,
             }
             for r in results
         ]
     }
+
 
 
 
@@ -421,13 +421,11 @@ def get_available_elements(db: Session = Depends(get_db)):
     """Get all elements (measures/indicators) in this dataset"""
     query = (
         select(
-            Elements.element_code,
-            Elements.element,
-            func.count(Aquastat.id).label('record_count')
+            Elements.element_code,  
+            Elements.element
         )
-        .join(Aquastat, Elements.id == Aquastat.element_code_id)
-        .group_by(Elements.element_code, Elements.element)
-        .order_by(func.count(Aquastat.id).desc())
+        .where(Elements.source_dataset == 'aquastat')
+        .order_by(Elements.element_code)
     )
     
     results = db.execute(query).all()
@@ -439,11 +437,11 @@ def get_available_elements(db: Session = Depends(get_db)):
             {
                 "element_code": r.element_code,
                 "element": r.element,
-                "record_count": r.record_count
             }
             for r in results
         ]
     }
+
 
 
 
@@ -478,6 +476,7 @@ def get_data_quality_summary(db: Session = Depends(get_db)):
             for r in results
         ]
     }
+
 
 @router.get("/years")
 @cache_result(prefix="aquastat:years", ttl=604800)
@@ -524,8 +523,8 @@ def get_dataset_summary(db: Session = Depends(get_db)):
         ]
     }
     
-    # Add counts for each FK relationship
     summary["unique_areas"] = db.query(func.count(func.distinct(Aquastat.area_code_id))).scalar()
     summary["unique_elements"] = db.query(func.count(func.distinct(Aquastat.element_code_id))).scalar()
+    summary["unique_flags"] = db.query(func.count(func.distinct(Aquastat.flag_id))).scalar()
     
     return summary

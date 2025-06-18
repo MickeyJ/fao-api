@@ -464,11 +464,10 @@ def get_available_areas(db: Session = Depends(get_db)):
         select(
             AreaCodes.area_code,
             AreaCodes.area,
-            func.count(SupplyUtilizationAccountsFoodAndDiet.id).label('record_count')
+            AreaCodes.area_code_m49,
         )
-        .join(SupplyUtilizationAccountsFoodAndDiet, AreaCodes.id == SupplyUtilizationAccountsFoodAndDiet.area_code_id)
-        .group_by(AreaCodes.area_code, AreaCodes.area)
-        .order_by(func.count(SupplyUtilizationAccountsFoodAndDiet.id).desc())
+        .where(AreaCodes.source_dataset == 'supply_utilization_accounts_food_and_diet')
+        .order_by(AreaCodes.area_code)
     )
     
     results = db.execute(query).all()
@@ -480,7 +479,7 @@ def get_available_areas(db: Session = Depends(get_db)):
             {
                 "area_code": r.area_code,
                 "area": r.area,
-                "record_count": r.record_count
+                "area_code_m49": r.area_code_m49,
             }
             for r in results
         ]
@@ -492,7 +491,62 @@ def get_available_areas(db: Session = Depends(get_db)):
 
 
 
+@router.get("/food_groups")
+@cache_result(prefix="supply_utilization_accounts_food_and_diet:food_groups", ttl=604800)
+def get_available_food_groups(db: Session = Depends(get_db)):
+    """Get all food groups in this dataset"""
+    query = (
+        select(
+            FoodGroups.food_group_code,
+            FoodGroups.food_group
+        )
+        .where(FoodGroups.source_dataset == 'supply_utilization_accounts_food_and_diet')
+        .order_by(FoodGroups.food_group_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "supply_utilization_accounts_food_and_diet",
+        "total_food_groups": len(results),
+        "food_groups": [
+            {
+                "food_group_code": r.food_group_code,
+                "food_group": r.food_group
+            }
+            for r in results
+        ]
+    }
 
+
+
+
+@router.get("/indicators")
+@cache_result(prefix="supply_utilization_accounts_food_and_diet:indicators", ttl=604800)
+def get_available_indicators(db: Session = Depends(get_db)):
+    """Get all indicators in this dataset"""
+    query = (
+        select(
+            Indicators.indicator_code,
+            Indicators.indicator
+        )
+        .where(Indicators.source_dataset == 'supply_utilization_accounts_food_and_diet')
+        .order_by(Indicators.indicator_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "supply_utilization_accounts_food_and_diet",
+        "total_indicators": len(results),
+        "indicators": [
+            {
+                "indicator_code": r.indicator_code,
+                "indicator": r.indicator
+            }
+            for r in results
+        ]
+    }
 
 
 @router.get("/elements")
@@ -501,13 +555,11 @@ def get_available_elements(db: Session = Depends(get_db)):
     """Get all elements (measures/indicators) in this dataset"""
     query = (
         select(
-            Elements.element_code,
-            Elements.element,
-            func.count(SupplyUtilizationAccountsFoodAndDiet.id).label('record_count')
+            Elements.element_code,  
+            Elements.element
         )
-        .join(SupplyUtilizationAccountsFoodAndDiet, Elements.id == SupplyUtilizationAccountsFoodAndDiet.element_code_id)
-        .group_by(Elements.element_code, Elements.element)
-        .order_by(func.count(SupplyUtilizationAccountsFoodAndDiet.id).desc())
+        .where(Elements.source_dataset == 'supply_utilization_accounts_food_and_diet')
+        .order_by(Elements.element_code)
     )
     
     results = db.execute(query).all()
@@ -519,11 +571,11 @@ def get_available_elements(db: Session = Depends(get_db)):
             {
                 "element_code": r.element_code,
                 "element": r.element,
-                "record_count": r.record_count
             }
             for r in results
         ]
     }
+
 
 
 
@@ -558,6 +610,7 @@ def get_data_quality_summary(db: Session = Depends(get_db)):
             for r in results
         ]
     }
+
 
 @router.get("/years")
 @cache_result(prefix="supply_utilization_accounts_food_and_diet:years", ttl=604800)
@@ -606,8 +659,10 @@ def get_dataset_summary(db: Session = Depends(get_db)):
         ]
     }
     
-    # Add counts for each FK relationship
     summary["unique_areas"] = db.query(func.count(func.distinct(SupplyUtilizationAccountsFoodAndDiet.area_code_id))).scalar()
+    summary["unique_food_groups"] = db.query(func.count(func.distinct(SupplyUtilizationAccountsFoodAndDiet.food_group_code_id))).scalar()
+    summary["unique_indicators"] = db.query(func.count(func.distinct(SupplyUtilizationAccountsFoodAndDiet.indicator_code_id))).scalar()
     summary["unique_elements"] = db.query(func.count(func.distinct(SupplyUtilizationAccountsFoodAndDiet.element_code_id))).scalar()
+    summary["unique_flags"] = db.query(func.count(func.distinct(SupplyUtilizationAccountsFoodAndDiet.flag_id))).scalar()
     
     return summary

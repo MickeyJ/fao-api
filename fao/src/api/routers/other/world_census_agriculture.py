@@ -461,11 +461,10 @@ def get_available_areas(db: Session = Depends(get_db)):
         select(
             AreaCodes.area_code,
             AreaCodes.area,
-            func.count(WorldCensusAgriculture.id).label('record_count')
+            AreaCodes.area_code_m49,
         )
-        .join(WorldCensusAgriculture, AreaCodes.id == WorldCensusAgriculture.area_code_id)
-        .group_by(AreaCodes.area_code, AreaCodes.area)
-        .order_by(func.count(WorldCensusAgriculture.id).desc())
+        .where(AreaCodes.source_dataset == 'world_census_agriculture')
+        .order_by(AreaCodes.area_code)
     )
     
     results = db.execute(query).all()
@@ -477,11 +476,12 @@ def get_available_areas(db: Session = Depends(get_db)):
             {
                 "area_code": r.area_code,
                 "area": r.area,
-                "record_count": r.record_count
+                "area_code_m49": r.area_code_m49,
             }
             for r in results
         ]
     }
+
 
 
 @router.get("/items")
@@ -492,11 +492,12 @@ def get_available_items(db: Session = Depends(get_db)):
         select(
             ItemCodes.item_code,
             ItemCodes.item,
-            func.count(WorldCensusAgriculture.id).label('record_count')
+            ItemCodes.item_code_cpc,
+            ItemCodes.item_code_fbs,
+            ItemCodes.item_code_sdg,
         )
-        .join(WorldCensusAgriculture, ItemCodes.id == WorldCensusAgriculture.item_code_id)
-        .group_by(ItemCodes.item_code, ItemCodes.item)
-        .order_by(func.count(WorldCensusAgriculture.id).desc())
+        .where(ItemCodes.source_dataset == 'world_census_agriculture')
+        .order_by(ItemCodes.item_code)
     )
     
     results = db.execute(query).all()
@@ -508,11 +509,14 @@ def get_available_items(db: Session = Depends(get_db)):
             {
                 "item_code": r.item_code,
                 "item": r.item,
-                "record_count": r.record_count
+                "item_code_cpc": r.item_code_cpc,
+                "item_code_fbs": r.item_code_fbs,
+                "item_code_sdg": r.item_code_sdg,
             }
             for r in results
         ]
     }
+
 
 
 
@@ -524,13 +528,11 @@ def get_available_elements(db: Session = Depends(get_db)):
     """Get all elements (measures/indicators) in this dataset"""
     query = (
         select(
-            Elements.element_code,
-            Elements.element,
-            func.count(WorldCensusAgriculture.id).label('record_count')
+            Elements.element_code,  
+            Elements.element
         )
-        .join(WorldCensusAgriculture, Elements.id == WorldCensusAgriculture.element_code_id)
-        .group_by(Elements.element_code, Elements.element)
-        .order_by(func.count(WorldCensusAgriculture.id).desc())
+        .where(Elements.source_dataset == 'world_census_agriculture')
+        .order_by(Elements.element_code)
     )
     
     results = db.execute(query).all()
@@ -542,11 +544,11 @@ def get_available_elements(db: Session = Depends(get_db)):
             {
                 "element_code": r.element_code,
                 "element": r.element,
-                "record_count": r.record_count
             }
             for r in results
         ]
     }
+
 
 
 
@@ -582,34 +584,7 @@ def get_data_quality_summary(db: Session = Depends(get_db)):
         ]
     }
 
-@router.get("/years")
-@cache_result(prefix="world_census_agriculture:years", ttl=604800)
-def get_temporal_coverage(db: Session = Depends(get_db)):
-    """Get temporal coverage information for this dataset"""
-    # Get year range and counts
-    query = (
-        select(
-            WorldCensusAgriculture.year,
-            func.count(WorldCensusAgriculture.id).label('record_count')
-        )
-        .group_by(WorldCensusAgriculture.year)
-        .order_by(WorldCensusAgriculture.year)
-    )
-    
-    results = db.execute(query).all()
-    years_data = [{"year": r.year, "record_count": r.record_count} for r in results]
-    
-    if not years_data:
-        return {"dataset": "world_census_agriculture", "message": "No temporal data available"}
-    
-    return {
-        "dataset": "world_census_agriculture",
-        "earliest_year": min(r["year"] for r in years_data),
-        "latest_year": max(r["year"] for r in years_data),
-        "total_years": len(years_data),
-        "total_records": sum(r["record_count"] for r in years_data),
-        "years": years_data
-    }
+
 
 @router.get("/summary")
 @cache_result(prefix="world_census_agriculture:summary", ttl=604800)
@@ -628,9 +603,9 @@ def get_dataset_summary(db: Session = Depends(get_db)):
         ]
     }
     
-    # Add counts for each FK relationship
     summary["unique_areas"] = db.query(func.count(func.distinct(WorldCensusAgriculture.area_code_id))).scalar()
     summary["unique_items"] = db.query(func.count(func.distinct(WorldCensusAgriculture.item_code_id))).scalar()
     summary["unique_elements"] = db.query(func.count(func.distinct(WorldCensusAgriculture.element_code_id))).scalar()
+    summary["unique_flags"] = db.query(func.count(func.distinct(WorldCensusAgriculture.flag_id))).scalar()
     
     return summary

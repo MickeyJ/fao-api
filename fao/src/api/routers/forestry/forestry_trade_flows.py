@@ -471,8 +471,62 @@ def get_forestry_trade_flows(
 
 
 
+@router.get("/reporter_countries")
+@cache_result(prefix="forestry_trade_flows:reporter_countries", ttl=604800)
+def get_available_reporter_countries(db: Session = Depends(get_db)):
+    """Get all reporter countries in this dataset"""
+    query = (
+        select(
+            ReporterCountryCodes.reporter_country_code,
+            ReporterCountryCodes.reporter_countries
+        )
+        .where(ReporterCountryCodes.source_dataset == 'forestry_trade_flows')
+        .order_by(ReporterCountryCodes.reporter_country_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "forestry_trade_flows",
+        "total_reporter_countries": len(results),
+        "reporter_countries": [
+            {
+                "reporter_country_code": r.reporter_country_code,
+                "reporter_countries": r.reporter_countries
+            }
+            for r in results
+        ]
+    }
 
 
+
+
+@router.get("/partner_countries")
+@cache_result(prefix="forestry_trade_flows:partner_countries", ttl=604800)
+def get_available_partner_countries(db: Session = Depends(get_db)):
+    """Get all partner countries in this dataset"""
+    query = (
+        select(
+            PartnerCountryCodes.partner_country_code,
+            PartnerCountryCodes.partner_countries
+        )
+        .where(PartnerCountryCodes.source_dataset == 'forestry_trade_flows')
+        .order_by(PartnerCountryCodes.partner_country_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "forestry_trade_flows",
+        "total_partner_countries": len(results),
+        "partner_countries": [
+            {
+                "partner_country_code": r.partner_country_code,
+                "partner_countries": r.partner_countries
+            }
+            for r in results
+        ]
+    }
 @router.get("/items")
 @cache_result(prefix="forestry_trade_flows:items", ttl=604800)
 def get_available_items(db: Session = Depends(get_db)):
@@ -481,11 +535,12 @@ def get_available_items(db: Session = Depends(get_db)):
         select(
             ItemCodes.item_code,
             ItemCodes.item,
-            func.count(ForestryTradeFlows.id).label('record_count')
+            ItemCodes.item_code_cpc,
+            ItemCodes.item_code_fbs,
+            ItemCodes.item_code_sdg,
         )
-        .join(ForestryTradeFlows, ItemCodes.id == ForestryTradeFlows.item_code_id)
-        .group_by(ItemCodes.item_code, ItemCodes.item)
-        .order_by(func.count(ForestryTradeFlows.id).desc())
+        .where(ItemCodes.source_dataset == 'forestry_trade_flows')
+        .order_by(ItemCodes.item_code)
     )
     
     results = db.execute(query).all()
@@ -497,11 +552,14 @@ def get_available_items(db: Session = Depends(get_db)):
             {
                 "item_code": r.item_code,
                 "item": r.item,
-                "record_count": r.record_count
+                "item_code_cpc": r.item_code_cpc,
+                "item_code_fbs": r.item_code_fbs,
+                "item_code_sdg": r.item_code_sdg,
             }
             for r in results
         ]
     }
+
 
 
 
@@ -513,13 +571,11 @@ def get_available_elements(db: Session = Depends(get_db)):
     """Get all elements (measures/indicators) in this dataset"""
     query = (
         select(
-            Elements.element_code,
-            Elements.element,
-            func.count(ForestryTradeFlows.id).label('record_count')
+            Elements.element_code,  
+            Elements.element
         )
-        .join(ForestryTradeFlows, Elements.id == ForestryTradeFlows.element_code_id)
-        .group_by(Elements.element_code, Elements.element)
-        .order_by(func.count(ForestryTradeFlows.id).desc())
+        .where(Elements.source_dataset == 'forestry_trade_flows')
+        .order_by(Elements.element_code)
     )
     
     results = db.execute(query).all()
@@ -531,11 +587,11 @@ def get_available_elements(db: Session = Depends(get_db)):
             {
                 "element_code": r.element_code,
                 "element": r.element,
-                "record_count": r.record_count
             }
             for r in results
         ]
     }
+
 
 
 
@@ -570,6 +626,7 @@ def get_data_quality_summary(db: Session = Depends(get_db)):
             for r in results
         ]
     }
+
 
 @router.get("/years")
 @cache_result(prefix="forestry_trade_flows:years", ttl=604800)
@@ -618,8 +675,10 @@ def get_dataset_summary(db: Session = Depends(get_db)):
         ]
     }
     
-    # Add counts for each FK relationship
+    summary["unique_reporter_countries"] = db.query(func.count(func.distinct(ForestryTradeFlows.reporter_country_code_id))).scalar()
+    summary["unique_partner_countries"] = db.query(func.count(func.distinct(ForestryTradeFlows.partner_country_code_id))).scalar()
     summary["unique_items"] = db.query(func.count(func.distinct(ForestryTradeFlows.item_code_id))).scalar()
     summary["unique_elements"] = db.query(func.count(func.distinct(ForestryTradeFlows.element_code_id))).scalar()
+    summary["unique_flags"] = db.query(func.count(func.distinct(ForestryTradeFlows.flag_id))).scalar()
     
     return summary

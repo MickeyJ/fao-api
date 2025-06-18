@@ -496,11 +496,10 @@ def get_available_areas(db: Session = Depends(get_db)):
         select(
             AreaCodes.area_code,
             AreaCodes.area,
-            func.count(EmploymentIndicatorsRural.id).label('record_count')
+            AreaCodes.area_code_m49,
         )
-        .join(EmploymentIndicatorsRural, AreaCodes.id == EmploymentIndicatorsRural.area_code_id)
-        .group_by(AreaCodes.area_code, AreaCodes.area)
-        .order_by(func.count(EmploymentIndicatorsRural.id).desc())
+        .where(AreaCodes.source_dataset == 'employment_indicators_rural')
+        .order_by(AreaCodes.area_code)
     )
     
     results = db.execute(query).all()
@@ -512,7 +511,7 @@ def get_available_areas(db: Session = Depends(get_db)):
             {
                 "area_code": r.area_code,
                 "area": r.area,
-                "record_count": r.record_count
+                "area_code_m49": r.area_code_m49,
             }
             for r in results
         ]
@@ -524,10 +523,92 @@ def get_available_areas(db: Session = Depends(get_db)):
 
 
 
+@router.get("/sources")
+@cache_result(prefix="employment_indicators_rural:sources", ttl=604800)
+def get_available_sources(db: Session = Depends(get_db)):
+    """Get all sources in this dataset"""
+    query = (
+        select(
+            Sources.source_code,
+            Sources.source
+        )
+        .where(Sources.source_dataset == 'employment_indicators_rural')
+        .order_by(Sources.source_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "employment_indicators_rural",
+        "total_sources": len(results),
+        "sources": [
+            {
+                "source_code": r.source_code,
+                "source": r.source
+            }
+            for r in results
+        ]
+    }
 
 
 
 
+@router.get("/indicators")
+@cache_result(prefix="employment_indicators_rural:indicators", ttl=604800)
+def get_available_indicators(db: Session = Depends(get_db)):
+    """Get all indicators in this dataset"""
+    query = (
+        select(
+            Indicators.indicator_code,
+            Indicators.indicator
+        )
+        .where(Indicators.source_dataset == 'employment_indicators_rural')
+        .order_by(Indicators.indicator_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "employment_indicators_rural",
+        "total_indicators": len(results),
+        "indicators": [
+            {
+                "indicator_code": r.indicator_code,
+                "indicator": r.indicator
+            }
+            for r in results
+        ]
+    }
+
+
+
+
+@router.get("/sexs")
+@cache_result(prefix="employment_indicators_rural:sexs", ttl=604800)
+def get_available_sexs(db: Session = Depends(get_db)):
+    """Get all sex categories in this dataset"""
+    query = (
+        select(
+            Sexs.sex_code,
+            Sexs.sex
+        )
+        .where(Sexs.source_dataset == 'employment_indicators_rural')
+        .order_by(Sexs.sex_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "employment_indicators_rural",
+        "total_sexs": len(results),
+        "sexs": [
+            {
+                "sex_code": r.sex_code,
+                "sex": r.sex
+            }
+            for r in results
+        ]
+    }
 
 
 @router.get("/elements")
@@ -536,13 +617,11 @@ def get_available_elements(db: Session = Depends(get_db)):
     """Get all elements (measures/indicators) in this dataset"""
     query = (
         select(
-            Elements.element_code,
-            Elements.element,
-            func.count(EmploymentIndicatorsRural.id).label('record_count')
+            Elements.element_code,  
+            Elements.element
         )
-        .join(EmploymentIndicatorsRural, Elements.id == EmploymentIndicatorsRural.element_code_id)
-        .group_by(Elements.element_code, Elements.element)
-        .order_by(func.count(EmploymentIndicatorsRural.id).desc())
+        .where(Elements.source_dataset == 'employment_indicators_rural')
+        .order_by(Elements.element_code)
     )
     
     results = db.execute(query).all()
@@ -554,11 +633,11 @@ def get_available_elements(db: Session = Depends(get_db)):
             {
                 "element_code": r.element_code,
                 "element": r.element,
-                "record_count": r.record_count
             }
             for r in results
         ]
     }
+
 
 
 
@@ -593,6 +672,7 @@ def get_data_quality_summary(db: Session = Depends(get_db)):
             for r in results
         ]
     }
+
 
 @router.get("/years")
 @cache_result(prefix="employment_indicators_rural:years", ttl=604800)
@@ -642,8 +722,11 @@ def get_dataset_summary(db: Session = Depends(get_db)):
         ]
     }
     
-    # Add counts for each FK relationship
     summary["unique_areas"] = db.query(func.count(func.distinct(EmploymentIndicatorsRural.area_code_id))).scalar()
+    summary["unique_sources"] = db.query(func.count(func.distinct(EmploymentIndicatorsRural.source_code_id))).scalar()
+    summary["unique_indicators"] = db.query(func.count(func.distinct(EmploymentIndicatorsRural.indicator_code_id))).scalar()
+    summary["unique_sexs"] = db.query(func.count(func.distinct(EmploymentIndicatorsRural.sex_code_id))).scalar()
     summary["unique_elements"] = db.query(func.count(func.distinct(EmploymentIndicatorsRural.element_code_id))).scalar()
+    summary["unique_flags"] = db.query(func.count(func.distinct(EmploymentIndicatorsRural.flag_id))).scalar()
     
     return summary

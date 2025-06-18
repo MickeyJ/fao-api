@@ -503,8 +503,62 @@ def get_development_assistance_to_agriculture(
 
 
 
+@router.get("/donors")
+@cache_result(prefix="development_assistance_to_agriculture:donors", ttl=604800)
+def get_available_donors(db: Session = Depends(get_db)):
+    """Get all donors in this dataset"""
+    query = (
+        select(
+            Donors.donor_code,
+            Donors.donor
+        )
+        .where(Donors.source_dataset == 'development_assistance_to_agriculture')
+        .order_by(Donors.donor_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "development_assistance_to_agriculture",
+        "total_donors": len(results),
+        "donors": [
+            {
+                "donor_code": r.donor_code,
+                "donor": r.donor
+            }
+            for r in results
+        ]
+    }
 
 
+
+
+@router.get("/recipient_countries")
+@cache_result(prefix="development_assistance_to_agriculture:recipient_countries", ttl=604800)
+def get_available_recipient_countries(db: Session = Depends(get_db)):
+    """Get all recipient countries in this dataset"""
+    query = (
+        select(
+            RecipientCountryCodes.recipient_country_code,
+            RecipientCountryCodes.recipient_country
+        )
+        .where(RecipientCountryCodes.source_dataset == 'development_assistance_to_agriculture')
+        .order_by(RecipientCountryCodes.recipient_country_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "development_assistance_to_agriculture",
+        "total_recipient_countries": len(results),
+        "recipient_countries": [
+            {
+                "recipient_country_code": r.recipient_country_code,
+                "recipient_country": r.recipient_country
+            }
+            for r in results
+        ]
+    }
 @router.get("/items")
 @cache_result(prefix="development_assistance_to_agriculture:items", ttl=604800)
 def get_available_items(db: Session = Depends(get_db)):
@@ -513,11 +567,12 @@ def get_available_items(db: Session = Depends(get_db)):
         select(
             ItemCodes.item_code,
             ItemCodes.item,
-            func.count(DevelopmentAssistanceToAgriculture.id).label('record_count')
+            ItemCodes.item_code_cpc,
+            ItemCodes.item_code_fbs,
+            ItemCodes.item_code_sdg,
         )
-        .join(DevelopmentAssistanceToAgriculture, ItemCodes.id == DevelopmentAssistanceToAgriculture.item_code_id)
-        .group_by(ItemCodes.item_code, ItemCodes.item)
-        .order_by(func.count(DevelopmentAssistanceToAgriculture.id).desc())
+        .where(ItemCodes.source_dataset == 'development_assistance_to_agriculture')
+        .order_by(ItemCodes.item_code)
     )
     
     results = db.execute(query).all()
@@ -529,11 +584,14 @@ def get_available_items(db: Session = Depends(get_db)):
             {
                 "item_code": r.item_code,
                 "item": r.item,
-                "record_count": r.record_count
+                "item_code_cpc": r.item_code_cpc,
+                "item_code_fbs": r.item_code_fbs,
+                "item_code_sdg": r.item_code_sdg,
             }
             for r in results
         ]
     }
+
 
 
 
@@ -545,13 +603,11 @@ def get_available_elements(db: Session = Depends(get_db)):
     """Get all elements (measures/indicators) in this dataset"""
     query = (
         select(
-            Elements.element_code,
-            Elements.element,
-            func.count(DevelopmentAssistanceToAgriculture.id).label('record_count')
+            Elements.element_code,  
+            Elements.element
         )
-        .join(DevelopmentAssistanceToAgriculture, Elements.id == DevelopmentAssistanceToAgriculture.element_code_id)
-        .group_by(Elements.element_code, Elements.element)
-        .order_by(func.count(DevelopmentAssistanceToAgriculture.id).desc())
+        .where(Elements.source_dataset == 'development_assistance_to_agriculture')
+        .order_by(Elements.element_code)
     )
     
     results = db.execute(query).all()
@@ -563,7 +619,6 @@ def get_available_elements(db: Session = Depends(get_db)):
             {
                 "element_code": r.element_code,
                 "element": r.element,
-                "record_count": r.record_count
             }
             for r in results
         ]
@@ -572,6 +627,34 @@ def get_available_elements(db: Session = Depends(get_db)):
 
 
 
+
+
+@router.get("/purposes")
+@cache_result(prefix="development_assistance_to_agriculture:purposes", ttl=604800)
+def get_available_purposes(db: Session = Depends(get_db)):
+    """Get all purposes in this dataset"""
+    query = (
+        select(
+            Purposes.purpose_code,
+            Purposes.purpose
+        )
+        .where(Purposes.source_dataset == 'development_assistance_to_agriculture')
+        .order_by(Purposes.purpose_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "development_assistance_to_agriculture",
+        "total_purposes": len(results),
+        "purposes": [
+            {
+                "purpose_code": r.purpose_code,
+                "purpose": r.purpose
+            }
+            for r in results
+        ]
+    }
 
 
 
@@ -605,6 +688,7 @@ def get_data_quality_summary(db: Session = Depends(get_db)):
             for r in results
         ]
     }
+
 
 @router.get("/years")
 @cache_result(prefix="development_assistance_to_agriculture:years", ttl=604800)
@@ -654,8 +738,11 @@ def get_dataset_summary(db: Session = Depends(get_db)):
         ]
     }
     
-    # Add counts for each FK relationship
+    summary["unique_donors"] = db.query(func.count(func.distinct(DevelopmentAssistanceToAgriculture.donor_code_id))).scalar()
+    summary["unique_recipient_countries"] = db.query(func.count(func.distinct(DevelopmentAssistanceToAgriculture.recipient_country_code_id))).scalar()
     summary["unique_items"] = db.query(func.count(func.distinct(DevelopmentAssistanceToAgriculture.item_code_id))).scalar()
     summary["unique_elements"] = db.query(func.count(func.distinct(DevelopmentAssistanceToAgriculture.element_code_id))).scalar()
+    summary["unique_purposes"] = db.query(func.count(func.distinct(DevelopmentAssistanceToAgriculture.purpose_code_id))).scalar()
+    summary["unique_flags"] = db.query(func.count(func.distinct(DevelopmentAssistanceToAgriculture.flag_id))).scalar()
     
     return summary

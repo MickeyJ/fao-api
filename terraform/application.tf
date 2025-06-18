@@ -1,7 +1,8 @@
 # ECR Repository for your container images
-resource "aws_ecr_repository" "food_data_api" {
-  name                 = "food-data-api"
+resource "aws_ecr_repository" "fao_api" {
+  name                 = "fao-api"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -10,7 +11,7 @@ resource "aws_ecr_repository" "food_data_api" {
 
 # IAM Role for App Runner Instance (to read secrets)
 resource "aws_iam_role" "app_runner_instance_role" {
-  name = "food-data-api-apprunner-instance-role"
+  name = "fao-api-apprunner-instance-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -27,7 +28,7 @@ resource "aws_iam_role" "app_runner_instance_role" {
 }
 
 resource "aws_iam_role_policy" "app_runner_instance_policy" {
-  name = "food-data-api-ssm-access"
+  name = "fao-api-ssm-access"
   role = aws_iam_role.app_runner_instance_role.id
 
   policy = jsonencode({
@@ -39,7 +40,7 @@ resource "aws_iam_role_policy" "app_runner_instance_policy" {
           "ssm:GetParameter",
           "ssm:GetParameters"
         ]
-        Resource = "arn:aws:ssm:us-west-2:*:parameter/food-data-api/*"
+        Resource = "arn:aws:ssm:us-west-2:*:parameter/fao-api/*"
       }
     ]
   })
@@ -47,7 +48,7 @@ resource "aws_iam_role_policy" "app_runner_instance_policy" {
 
 # IAM Role for App Runner Access (to pull from ECR)
 resource "aws_iam_role" "app_runner_access_role" {
-  name = "food-data-api-apprunner-access-role"
+  name = "fao-api-apprunner-access-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -69,8 +70,8 @@ resource "aws_iam_role_policy_attachment" "app_runner_access_role" {
 }
 
 # App Runner Service
-resource "aws_apprunner_service" "food_data_api" {
-  service_name = "food-data-api"
+resource "aws_apprunner_service" "fao_api" {
+  service_name = "fao-api"
 
   source_configuration {
     authentication_configuration {
@@ -80,20 +81,20 @@ resource "aws_apprunner_service" "food_data_api" {
       image_configuration {
         port = "8000"
         runtime_environment_variables = {
-          DB_HOST = "aws-0-us-west-1.pooler.supabase.com"
-          DB_PORT = "5432"
-          DB_NAME = "postgres"
-          DB_USER = "postgres.rltlqzgjokukrrpqqvre"
+          DB_HOST    = aws_db_instance.fao_postgres.address
+          DB_PORT    = "5432"
+          DB_NAME    = aws_db_instance.fao_postgres.db_name
+          DB_USER    = aws_db_instance.fao_postgres.username
           REDIS_HOST = "romantic-swine-11670.upstash.io"
           REDIS_PORT = "6379"
         }
 
         runtime_environment_secrets = {
-          DB_PASSWORD = aws_ssm_parameter.supabase_password.arn
+          DB_PASSWORD    = aws_ssm_parameter.rds_db_password.arn
           REDIS_PASSWORD = aws_ssm_parameter.redis_password.arn
         }
       }
-      image_identifier      = "${aws_ecr_repository.food_data_api.repository_url}:latest"
+      image_identifier      = "${aws_ecr_repository.fao_api.repository_url}:latest"
       image_repository_type = "ECR"
     }
     auto_deployments_enabled = false # Manual deployments for now
@@ -115,16 +116,17 @@ resource "aws_apprunner_service" "food_data_api" {
   }
 
   tags = {
-    Name = "food-data-api"
+    Name = "fao-api"
   }
 
   # CRITICAL: Ensure roles are created before App Runner
   depends_on = [
-    aws_ecr_repository.food_data_api,
+    aws_ecr_repository.fao_api,
     aws_iam_role.app_runner_access_role,
     aws_iam_role_policy_attachment.app_runner_access_role,
     aws_iam_role.app_runner_instance_role,
     aws_iam_role_policy.app_runner_instance_policy,
-    aws_ssm_parameter.supabase_password
+    aws_db_instance.fao_postgres,
+    aws_ssm_parameter.rds_db_password
   ]
 }

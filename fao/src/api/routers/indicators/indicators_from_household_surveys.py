@@ -430,8 +430,62 @@ def get_indicators_from_household_surveys(
 
 
 
+@router.get("/surveys")
+@cache_result(prefix="indicators_from_household_surveys:surveys", ttl=604800)
+def get_available_surveys(db: Session = Depends(get_db)):
+    """Get all surveys in this dataset"""
+    query = (
+        select(
+            Surveys.survey_code,
+            Surveys.survey
+        )
+        .where(Surveys.source_dataset == 'indicators_from_household_surveys')
+        .order_by(Surveys.survey_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "indicators_from_household_surveys",
+        "total_surveys": len(results),
+        "surveys": [
+            {
+                "survey_code": r.survey_code,
+                "survey": r.survey
+            }
+            for r in results
+        ]
+    }
 
 
+
+
+@router.get("/indicators")
+@cache_result(prefix="indicators_from_household_surveys:indicators", ttl=604800)
+def get_available_indicators(db: Session = Depends(get_db)):
+    """Get all indicators in this dataset"""
+    query = (
+        select(
+            Indicators.indicator_code,
+            Indicators.indicator
+        )
+        .where(Indicators.source_dataset == 'indicators_from_household_surveys')
+        .order_by(Indicators.indicator_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "indicators_from_household_surveys",
+        "total_indicators": len(results),
+        "indicators": [
+            {
+                "indicator_code": r.indicator_code,
+                "indicator": r.indicator
+            }
+            for r in results
+        ]
+    }
 
 
 @router.get("/elements")
@@ -440,13 +494,11 @@ def get_available_elements(db: Session = Depends(get_db)):
     """Get all elements (measures/indicators) in this dataset"""
     query = (
         select(
-            Elements.element_code,
-            Elements.element,
-            func.count(IndicatorsFromHouseholdSurveys.id).label('record_count')
+            Elements.element_code,  
+            Elements.element
         )
-        .join(IndicatorsFromHouseholdSurveys, Elements.id == IndicatorsFromHouseholdSurveys.element_code_id)
-        .group_by(Elements.element_code, Elements.element)
-        .order_by(func.count(IndicatorsFromHouseholdSurveys.id).desc())
+        .where(Elements.source_dataset == 'indicators_from_household_surveys')
+        .order_by(Elements.element_code)
     )
     
     results = db.execute(query).all()
@@ -458,11 +510,11 @@ def get_available_elements(db: Session = Depends(get_db)):
             {
                 "element_code": r.element_code,
                 "element": r.element,
-                "record_count": r.record_count
             }
             for r in results
         ]
     }
+
 
 
 
@@ -498,34 +550,7 @@ def get_data_quality_summary(db: Session = Depends(get_db)):
         ]
     }
 
-@router.get("/years")
-@cache_result(prefix="indicators_from_household_surveys:years", ttl=604800)
-def get_temporal_coverage(db: Session = Depends(get_db)):
-    """Get temporal coverage information for this dataset"""
-    # Get year range and counts
-    query = (
-        select(
-            IndicatorsFromHouseholdSurveys.year,
-            func.count(IndicatorsFromHouseholdSurveys.id).label('record_count')
-        )
-        .group_by(IndicatorsFromHouseholdSurveys.year)
-        .order_by(IndicatorsFromHouseholdSurveys.year)
-    )
-    
-    results = db.execute(query).all()
-    years_data = [{"year": r.year, "record_count": r.record_count} for r in results]
-    
-    if not years_data:
-        return {"dataset": "indicators_from_household_surveys", "message": "No temporal data available"}
-    
-    return {
-        "dataset": "indicators_from_household_surveys",
-        "earliest_year": min(r["year"] for r in years_data),
-        "latest_year": max(r["year"] for r in years_data),
-        "total_years": len(years_data),
-        "total_records": sum(r["record_count"] for r in years_data),
-        "years": years_data
-    }
+
 
 @router.get("/summary")
 @cache_result(prefix="indicators_from_household_surveys:summary", ttl=604800)
@@ -544,7 +569,9 @@ def get_dataset_summary(db: Session = Depends(get_db)):
         ]
     }
     
-    # Add counts for each FK relationship
+    summary["unique_surveys"] = db.query(func.count(func.distinct(IndicatorsFromHouseholdSurveys.survey_code_id))).scalar()
+    summary["unique_indicators"] = db.query(func.count(func.distinct(IndicatorsFromHouseholdSurveys.indicator_code_id))).scalar()
     summary["unique_elements"] = db.query(func.count(func.distinct(IndicatorsFromHouseholdSurveys.element_code_id))).scalar()
+    summary["unique_flags"] = db.query(func.count(func.distinct(IndicatorsFromHouseholdSurveys.flag_id))).scalar()
     
     return summary

@@ -34,7 +34,7 @@ endif
 	db-refresh-views-local db-drop-views-local db-schema-diff-local db-update-remote \
 	db-create-views-remote db-refresh-views-remote db-drop-views-remote db-schema-diff-remote \
 	create-db-local-admin drop-db-local-admin clear-all-tables-local enable-rls-db-remote \
-	show-all-tables tf-fmt tf-validate tf-plan tf-apply
+	show-all-tables tf-init tf-fmt tf-validate tf-plan tf-apply
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 #  			Python Environment
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
@@ -241,6 +241,8 @@ NO-DIRECT-USE-enable-rls:
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 # 		 Terraform Commands
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+tf-init:
+	terraform -chdir=./terraform init
 tf-fmt:
 	terraform -chdir=./terraform fmt
 tf-validate:

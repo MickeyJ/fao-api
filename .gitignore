@@ -94,5 +94,7 @@ override.tf.json
 Thumbs.db
 
 
+*.pem
+
 # exclude specific files or directories
 fao_db_migration.sh

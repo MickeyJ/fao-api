@@ -441,11 +441,10 @@ def get_available_areas(db: Session = Depends(get_db)):
         select(
             AreaCodes.area_code,
             AreaCodes.area,
-            func.count(AstiResearchers.id).label('record_count')
+            AreaCodes.area_code_m49,
         )
-        .join(AstiResearchers, AreaCodes.id == AstiResearchers.area_code_id)
-        .group_by(AreaCodes.area_code, AreaCodes.area)
-        .order_by(func.count(AstiResearchers.id).desc())
+        .where(AreaCodes.source_dataset == 'asti_researchers')
+        .order_by(AreaCodes.area_code)
     )
     
     results = db.execute(query).all()
@@ -457,11 +456,12 @@ def get_available_areas(db: Session = Depends(get_db)):
             {
                 "area_code": r.area_code,
                 "area": r.area,
-                "record_count": r.record_count
+                "area_code_m49": r.area_code_m49,
             }
             for r in results
         ]
     }
+
 
 
 @router.get("/items")
@@ -472,11 +472,12 @@ def get_available_items(db: Session = Depends(get_db)):
         select(
             ItemCodes.item_code,
             ItemCodes.item,
-            func.count(AstiResearchers.id).label('record_count')
+            ItemCodes.item_code_cpc,
+            ItemCodes.item_code_fbs,
+            ItemCodes.item_code_sdg,
         )
-        .join(AstiResearchers, ItemCodes.id == AstiResearchers.item_code_id)
-        .group_by(ItemCodes.item_code, ItemCodes.item)
-        .order_by(func.count(AstiResearchers.id).desc())
+        .where(ItemCodes.source_dataset == 'asti_researchers')
+        .order_by(ItemCodes.item_code)
     )
     
     results = db.execute(query).all()
@@ -488,11 +489,14 @@ def get_available_items(db: Session = Depends(get_db)):
             {
                 "item_code": r.item_code,
                 "item": r.item,
-                "record_count": r.record_count
+                "item_code_cpc": r.item_code_cpc,
+                "item_code_fbs": r.item_code_fbs,
+                "item_code_sdg": r.item_code_sdg,
             }
             for r in results
         ]
     }
+
 
 
 
@@ -504,13 +508,11 @@ def get_available_elements(db: Session = Depends(get_db)):
     """Get all elements (measures/indicators) in this dataset"""
     query = (
         select(
-            Elements.element_code,
-            Elements.element,
-            func.count(AstiResearchers.id).label('record_count')
+            Elements.element_code,  
+            Elements.element
         )
-        .join(AstiResearchers, Elements.id == AstiResearchers.element_code_id)
-        .group_by(Elements.element_code, Elements.element)
-        .order_by(func.count(AstiResearchers.id).desc())
+        .where(Elements.source_dataset == 'asti_researchers')
+        .order_by(Elements.element_code)
     )
     
     results = db.execute(query).all()
@@ -522,11 +524,11 @@ def get_available_elements(db: Session = Depends(get_db)):
             {
                 "element_code": r.element_code,
                 "element": r.element,
-                "record_count": r.record_count
             }
             for r in results
         ]
     }
+
 
 
 
@@ -561,6 +563,7 @@ def get_data_quality_summary(db: Session = Depends(get_db)):
             for r in results
         ]
     }
+
 
 @router.get("/years")
 @cache_result(prefix="asti_researchers:years", ttl=604800)
@@ -608,9 +611,9 @@ def get_dataset_summary(db: Session = Depends(get_db)):
         ]
     }
     
-    # Add counts for each FK relationship
     summary["unique_areas"] = db.query(func.count(func.distinct(AstiResearchers.area_code_id))).scalar()
     summary["unique_items"] = db.query(func.count(func.distinct(AstiResearchers.item_code_id))).scalar()
     summary["unique_elements"] = db.query(func.count(func.distinct(AstiResearchers.element_code_id))).scalar()
+    summary["unique_flags"] = db.query(func.count(func.distinct(AstiResearchers.flag_id))).scalar()
     
     return summary

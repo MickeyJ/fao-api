@@ -473,11 +473,10 @@ def get_available_areas(db: Session = Depends(get_db)):
         select(
             AreaCodes.area_code,
             AreaCodes.area,
-            func.count(EmissionsLandUseForests.id).label('record_count')
+            AreaCodes.area_code_m49,
         )
-        .join(EmissionsLandUseForests, AreaCodes.id == EmissionsLandUseForests.area_code_id)
-        .group_by(AreaCodes.area_code, AreaCodes.area)
-        .order_by(func.count(EmissionsLandUseForests.id).desc())
+        .where(AreaCodes.source_dataset == 'emissions_land_use_forests')
+        .order_by(AreaCodes.area_code)
     )
     
     results = db.execute(query).all()
@@ -489,11 +488,12 @@ def get_available_areas(db: Session = Depends(get_db)):
             {
                 "area_code": r.area_code,
                 "area": r.area,
-                "record_count": r.record_count
+                "area_code_m49": r.area_code_m49,
             }
             for r in results
         ]
     }
+
 
 
 @router.get("/items")
@@ -504,11 +504,12 @@ def get_available_items(db: Session = Depends(get_db)):
         select(
             ItemCodes.item_code,
             ItemCodes.item,
-            func.count(EmissionsLandUseForests.id).label('record_count')
+            ItemCodes.item_code_cpc,
+            ItemCodes.item_code_fbs,
+            ItemCodes.item_code_sdg,
         )
-        .join(EmissionsLandUseForests, ItemCodes.id == EmissionsLandUseForests.item_code_id)
-        .group_by(ItemCodes.item_code, ItemCodes.item)
-        .order_by(func.count(EmissionsLandUseForests.id).desc())
+        .where(ItemCodes.source_dataset == 'emissions_land_use_forests')
+        .order_by(ItemCodes.item_code)
     )
     
     results = db.execute(query).all()
@@ -520,11 +521,14 @@ def get_available_items(db: Session = Depends(get_db)):
             {
                 "item_code": r.item_code,
                 "item": r.item,
-                "record_count": r.record_count
+                "item_code_cpc": r.item_code_cpc,
+                "item_code_fbs": r.item_code_fbs,
+                "item_code_sdg": r.item_code_sdg,
             }
             for r in results
         ]
     }
+
 
 
 
@@ -536,13 +540,11 @@ def get_available_elements(db: Session = Depends(get_db)):
     """Get all elements (measures/indicators) in this dataset"""
     query = (
         select(
-            Elements.element_code,
-            Elements.element,
-            func.count(EmissionsLandUseForests.id).label('record_count')
+            Elements.element_code,  
+            Elements.element
         )
-        .join(EmissionsLandUseForests, Elements.id == EmissionsLandUseForests.element_code_id)
-        .group_by(Elements.element_code, Elements.element)
-        .order_by(func.count(EmissionsLandUseForests.id).desc())
+        .where(Elements.source_dataset == 'emissions_land_use_forests')
+        .order_by(Elements.element_code)
     )
     
     results = db.execute(query).all()
@@ -554,7 +556,6 @@ def get_available_elements(db: Session = Depends(get_db)):
             {
                 "element_code": r.element_code,
                 "element": r.element,
-                "record_count": r.record_count
             }
             for r in results
         ]
@@ -563,6 +564,34 @@ def get_available_elements(db: Session = Depends(get_db)):
 
 
 
+
+
+@router.get("/sources")
+@cache_result(prefix="emissions_land_use_forests:sources", ttl=604800)
+def get_available_sources(db: Session = Depends(get_db)):
+    """Get all sources in this dataset"""
+    query = (
+        select(
+            Sources.source_code,
+            Sources.source
+        )
+        .where(Sources.source_dataset == 'emissions_land_use_forests')
+        .order_by(Sources.source_code)
+    )
+    
+    results = db.execute(query).all()
+    
+    return {
+        "dataset": "emissions_land_use_forests",
+        "total_sources": len(results),
+        "sources": [
+            {
+                "source_code": r.source_code,
+                "source": r.source
+            }
+            for r in results
+        ]
+    }
 
 
 
@@ -596,6 +625,7 @@ def get_data_quality_summary(db: Session = Depends(get_db)):
             for r in results
         ]
     }
+
 
 @router.get("/years")
 @cache_result(prefix="emissions_land_use_forests:years", ttl=604800)
@@ -644,9 +674,10 @@ def get_dataset_summary(db: Session = Depends(get_db)):
         ]
     }
     
-    # Add counts for each FK relationship
     summary["unique_areas"] = db.query(func.count(func.distinct(EmissionsLandUseForests.area_code_id))).scalar()
     summary["unique_items"] = db.query(func.count(func.distinct(EmissionsLandUseForests.item_code_id))).scalar()
     summary["unique_elements"] = db.query(func.count(func.distinct(EmissionsLandUseForests.element_code_id))).scalar()
+    summary["unique_sources"] = db.query(func.count(func.distinct(EmissionsLandUseForests.source_code_id))).scalar()
+    summary["unique_flags"] = db.query(func.count(func.distinct(EmissionsLandUseForests.flag_id))).scalar()
     
     return summary
