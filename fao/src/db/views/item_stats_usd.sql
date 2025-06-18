@@ -1,3 +1,5 @@
+DROP MATERIALIZED VIEW IF EXISTS item_stats_usd CASCADE;
+CREATE MATERIALIZED VIEW item_stats_usd AS
 SELECT 
     ic.id,
     ic.item as name,
@@ -26,4 +28,5 @@ HAVING
 ORDER BY 
     COUNT(DISTINCT p.area_code_id) DESC,  -- Most countries first
     COUNT(DISTINCT p.year) DESC,          -- Then most years
-    COUNT(p.id) DESC;                     -- Then most data points
+    COUNT(p.id) DESC
+WITH NO DATA;

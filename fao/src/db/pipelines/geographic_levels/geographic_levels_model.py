@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class GeographicLevels(Base):
     __tablename__ = "geographic_levels"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     geographic_level_code = Column(String, nullable=False, index=False)
     geographic_level = Column(String, nullable=False, index=False)

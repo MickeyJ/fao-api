@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class AreaCodes(Base):
     __tablename__ = "area_codes"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     area_code = Column(String, nullable=False, index=False)
     area = Column(String, nullable=False, index=False)

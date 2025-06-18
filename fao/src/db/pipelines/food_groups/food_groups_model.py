@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class FoodGroups(Base):
     __tablename__ = "food_groups"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     food_group_code = Column(String, nullable=False, index=False)
     food_group = Column(String, nullable=False, index=False)

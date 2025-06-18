@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class Indicators(Base):
     __tablename__ = "indicators"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     indicator_code = Column(String, nullable=False, index=False)
     indicator = Column(String, nullable=False, index=False)

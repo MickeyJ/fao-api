@@ -1,0 +1,87 @@
+schemaname |                         table_name                          | rows_inserted | rows_updated | rows_deleted | last_vacuum |        last_autovacuum
+------------+-------------------------------------------------------------+---------------+--------------+--------------+-------------+-------------------------------
+ public     | trade_crops_livestock                                       |      52642353 |            0 |            0 |             | 2025-06-15 04:58:16.7601-07
+ public     | trade_detailed_trade_matrix                                 |      50428180 |            0 |            0 |             | 2025-06-15 12:38:40.723147-07
+ public     | trade_indices                                               |      17133088 |            0 |            0 |             | 2025-06-15 14:13:45.785815-07
+ public     | development_assistance_to_agriculture                       |      13241237 |            0 |            0 |             | 2025-06-14 11:44:45.139552-07
+ public     | food_balance_sheets_historic                                |      11479903 |            0 |            0 |             | 2025-06-14 15:37:13.893528-07
+ public     | sua_crops_livestock                                         |      10901444 |            0 |            0 |             | 2025-06-14 19:50:18.596427-07
+ public     | emissions_livestock                                         |       6583578 |            0 |            0 |             | 2025-06-14 12:48:55.935482-07
+ public     | fertilizers_detailed_trade_matrix                           |       5061939 |            0 |            0 |             | 2025-06-14 14:25:53.055672-07
+ public     | food_balance_sheets                                         |       4660700 |            0 |            0 |             | 2025-06-14 16:08:49.189329-07
+ public     | production_crops_livestock                                  |       4116252 |            0 |            0 |             | 2025-06-14 18:18:50.732624-07
+ public     | price_ratios_lcu                                            |       3966549 |            0 |            0 |             | 2025-06-15 19:13:23.114426-07
+ public     | price_ratios_usd                                            |       3925528 |            0 |            0 |             | 2025-06-15 19:14:16.278184-07
+ public     | value_of_production                                         |       3025529 |            0 |            0 |             | 2025-06-15 14:46:03.107525-07
+ public     | forestry_trade_flows                                        |       2829802 |            0 |            0 |             | 2025-06-14 16:54:44.281216-07
+ public     | environment_livestock_manure                                |       2530621 |            0 |            0 |             | 2025-06-14 13:37:41.2687-07
+ public     | emissions_totals                                            |       2397460 |            0 |            0 |             | 2025-06-14 13:09:41.036638-07
+ public     | forestry                                                    |       2288329 |            0 |            0 |             | 2025-06-14 16:31:43.591117-07
+ public     | production_indices                                          |       1989264 |            0 |            0 |             | 2025-06-14 18:31:45.090493-07
+ public     | individual_quantitative_dietary_data_food_and_diet          |       1677810 |            0 |            0 |             | 2025-06-14 17:21:44.135441-07
+ public     | prices                                                      |       1261761 |            0 |            0 |             | 2025-06-14 17:51:44.42402-07
+ public     | commodity_balances_non_food_2013_old_methodology            |       1184986 |            0 |            0 |             | 2025-06-13 23:31:28.333533-07
+ public     | household_consumption_and_expenditure_surveys_food_and_diet |       1121550 |            0 |            0 |             | 2025-06-14 17:05:44.310579-07
+ public     | aquastat                                                    |        965617 |            0 |            0 |             | 2025-06-14 09:52:37.741664-07
+ public     | emissions_crops                                             |        756538 |            0 |            0 |             | 2025-06-14 11:49:39.630899-07
+ public     | environment_cropland_nutrient_budget                        |        729345 |            0 |            0 |             | 2025-06-14 13:17:40.546317-07
+ public     | supply_utilization_accounts_food_and_diet                   |        728771 |            0 |            0 |             | 2025-06-14 19:54:46.451725-07
+ public     | macro_statistics_key_indicators                             |        709848 |            0 |            0 |             | 2025-06-14 17:41:43.922205-07
+ public     | climate_change_emissions_indicators                         |        658330 |            0 |            0 |             | 2025-06-13 23:23:28.090707-07
+ public     | environment_temperature_change                              |        572390 |            0 |            0 |             | 2025-06-14 13:45:40.809624-07
+ public     | emissions_pre_post_production                               |        516261 |            0 |            0 |             | 2025-06-14 12:52:40.26539-07
+ public     | environment_livestock_patterns                              |        469515 |            0 |            0 |             | 2025-06-14 13:41:40.78438-07
+ public     | emissions_land_use_fires                                    |        416976 |            0 |            0 |             | 2025-06-14 11:53:39.688262-07
+ public     | environment_emissions_intensities                           |        408831 |            0 |            0 |             | 2025-06-14 13:20:40.578791-07
+ public     | inputs_land_use                                             |        398774 |            0 |            0 |             | 2025-06-14 17:28:43.666458-07
+ public     | sdg_bulk_downloads                                          |        337479 |            0 |            0 |             | 2025-06-14 18:35:45.20062-07
+ public     | investment_machinery_archive                                |        328932 |            0 |            0 |             | 2025-06-14 17:35:43.702437-07
+ public     | food_security_data                                          |        283880 |            0 |            0 |             | 2025-06-14 16:16:42.721805-07
+ public     | inputs_fertilizers_product                                  |        259248 |            0 |            0 |             | 2025-06-14 17:26:43.514285-07
+ public     | consumer_price_indices                                      |        251516 |            0 |            0 |             | 2025-06-14 07:51:15.290157-07
+ public     | inputs_fertilizers_nutrient                                 |        235607 |            0 |            0 |             | 2025-06-14 17:24:43.639738-07
+ public     | environment_land_cover                                      |        209714 |            0 |            0 |             | 2025-06-14 13:22:40.420405-07
+ public     | employment_indicators_agriculture                           |        184353 |            0 |            0 |             | 2025-06-14 13:11:40.594714-07
+ public     | inputs_pesticides_trade                                     |        183505 |            0 |            0 |             | 2025-06-14 17:30:43.484785-07
+ public     | inputs_fertilizers_archive                                  |        178192 |            0 |            0 |             | 2025-06-14 17:23:43.438529-07
+ public     | trade_crops_livestock_indicators                            |        169854 |            0 |            0 |             | 2025-06-14 19:56:46.281462-07
+ public     | population                                                  |        168689 |            0 |            0 |             | 2025-06-14 17:42:43.968833-07
+ public     | price_details_lcu                                           |        163369 |            0 |            0 |             | 2025-06-15 19:10:56.796883-07
+ public     | price_details_usd                                           |        162652 |            0 |            0 |             | 2025-06-15 19:11:00.172269-07
+ public     | value_shares_industry_primary_factors                       |        161088 |            0 |            0 |             | 2025-06-15 14:51:02.483499-07
+ public     | indicators_from_household_surveys                           |        148620 |            0 |            0 |             | 2025-06-14 17:07:43.329594-07
+ public     | emissions_agriculture_energy                                |        147715 |            0 |            0 |             | 2025-06-14 11:44:39.814258-07
+ public     | investment_machinery                                        |        146834 |            0 |            0 |             | 2025-06-14 17:37:43.562235-07
+ public     | investment_government_expenditure                           |        145974 |            0 |            0 |             | 2025-06-14 17:34:43.473945-07
+ public     | investment_capital_stock                                    |        144944 |            0 |            0 |             | 2025-06-14 17:31:43.860498-07
+ public     | exchange_rate                                               |        139855 |            0 |            0 |             | 2025-06-14 13:46:40.73657-07
+ public     | prices_archive                                              |        139738 |            0 |            0 |             | 2025-06-14 17:43:44.150822-07
+ public     | commodity_balances_non_food_2010                            |        128560 |            0 |            0 |             | 2025-06-13 23:32:28.048526-07
+ public     | employment_indicators_rural                                 |        114189 |            0 |            0 |             | 2025-06-14 13:12:40.57972-07
+ public     | environment_bioenergy                                       |        109528 |            0 |            0 |             | 2025-06-14 13:13:40.405856-07
+ public     | inputs_pesticides_use                                       |        100004 |            0 |            0 |             | 2025-06-14 17:31:43.419798-07
+(60 rows)
+
+
+ schemaname |              table_name               |                  indexrelname                  |  size
+------------+---------------------------------------+------------------------------------------------+---------
+ public     | trade_crops_livestock                 | trade_crops_livestock_pkey                     | 1128 MB
+ public     | trade_detailed_trade_matrix           | trade_detailed_trade_matrix_pkey               | 1080 MB
+ public     | trade_indices                         | trade_indices_pkey                             | 367 MB
+ public     | trade_crops_livestock                 | ix_trade_crops_livestock_item_code_id          | 326 MB
+ public     | trade_crops_livestock                 | ix_trade_crops_livestock_area_code_id          | 325 MB
+ public     | trade_crops_livestock                 | ix_trade_crops_livestock_element_code_id       | 324 MB
+ public     | trade_crops_livestock                 | ix_trade_crops_livestock_year                  | 324 MB
+ public     | trade_crops_livestock                 | ix_trade_crops_livestock_flag_id               | 324 MB
+ public     | trade_detailed_trade_matrix           | ix_trade_detailed_trade_matrix_item_code_id    | 312 MB
+ public     | trade_detailed_trade_matrix           | ix_trade_detailed_trade_matrix_element_code_id | 310 MB
+ public     | trade_detailed_trade_matrix           | ix_trade_detailed_trade_matrix_year            | 310 MB
+ public     | trade_detailed_trade_matrix           | ix_trade_detailed_trade_matrix_flag_id         | 310 MB
+ public     | development_assistance_to_agriculture | development_assistance_to_agriculture_pkey     | 284 MB
+ public     | food_balance_sheets_historic          | food_balance_sheets_historic_pkey              | 246 MB
+ public     | sua_crops_livestock                   | sua_crops_livestock_pkey                       | 234 MB
+ public     | emissions_livestock                   | emissions_livestock_pkey                       | 141 MB
+ public     | fertilizers_detailed_trade_matrix     | fertilizers_detailed_trade_matrix_pkey         | 108 MB
+ public     | trade_indices                         | ix_trade_indices_area_code_id                  | 106 MB
+ public     | trade_indices                         | ix_trade_indices_item_code_id                  | 106 MB
+ public     | trade_indices                         | ix_trade_indices_year                          | 106 MB

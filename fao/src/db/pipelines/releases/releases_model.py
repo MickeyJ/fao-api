@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class Releases(Base):
     __tablename__ = "releases"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     release_code = Column(String, nullable=False, index=False)
     release = Column(String, nullable=False, index=False)

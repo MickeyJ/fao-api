@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class Purposes(Base):
     __tablename__ = "purposes"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     purpose_code = Column(String, nullable=False, index=False)
     purpose = Column(String, nullable=False, index=False)

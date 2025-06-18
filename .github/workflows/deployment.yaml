@@ -10,8 +10,8 @@ permissions:
 
 env:
   AWS_REGION: us-west-2
-  ECR_REPOSITORY: food-data-api
-  APP_RUNNER_SERVICE: food-data-api
+  ECR_REPOSITORY: fao-api
+  APP_RUNNER_SERVICE: fao-api
 
 jobs:
   deploy:

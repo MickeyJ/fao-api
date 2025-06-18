@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class Surveys(Base):
     __tablename__ = "surveys"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     survey_code = Column(String, nullable=False, index=False)
     survey = Column(String, nullable=False, index=False)

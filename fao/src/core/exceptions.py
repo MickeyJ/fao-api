@@ -221,7 +221,135 @@ class ConfigurationError(FAOAPIError):
         )
 
 
+class CacheError(FAOAPIError):
+    """Base exception for cache-related errors."""
+
+    def __init__(self, message: Optional[str] = None, error_code: ErrorCode = ErrorCode.CACHE_ERROR, **kwargs):
+        if message is None:
+            message = get_error_message(error_code)
+
+        super().__init__(
+            message=message,
+            error_type="cache_error",
+            error_code=error_code,
+            status_code=503,  # Service Unavailable
+            **kwargs,
+        )
+
+
+class CacheConnectionError(CacheError):
+    """Raised when cache service connection fails."""
+
+    def __init__(self, service: str = "Redis", message: Optional[str] = None, **kwargs):
+        if message is None:
+            message = get_error_message(ErrorCode.CACHE_CONNECTION_FAILED, service=service)
+
+        super().__init__(
+            message=message, error_code=ErrorCode.CACHE_CONNECTION_FAILED, metadata={"service": service}, **kwargs
+        )
+
+
+class CacheOperationError(CacheError):
+    """Raised when cache read/write operation fails."""
+
+    def __init__(self, operation: str, key: Optional[str] = None, message: Optional[str] = None, **kwargs):
+        if message is None:
+            message = get_error_message(ErrorCode.CACHE_OPERATION_FAILED, operation=operation)
+            if key:
+                message += f" for key: {key[:50]}"  # Truncate long keys
+
+        metadata = kwargs.get("metadata", {})
+        metadata["operation"] = operation
+        if key:
+            metadata["key"] = key[:50]
+
+        kwargs["metadata"] = metadata
+
+        super().__init__(message=message, error_code=ErrorCode.CACHE_OPERATION_FAILED, **kwargs)
+
+
+class CacheSerializationError(CacheError):
+    """Raised when cache data serialization/deserialization fails."""
+
+    def __init__(
+        self,
+        action: str = "serialize",  # "serialize" or "deserialize"
+        data_type: Optional[str] = None,
+        message: Optional[str] = None,
+        **kwargs,
+    ):
+        if message is None:
+            message = get_error_message(ErrorCode.CACHE_SERIALIZATION_ERROR, action=action)
+            if data_type:
+                message += f" for type: {data_type}"
+
+        super().__init__(
+            message=message,
+            error_code=ErrorCode.CACHE_SERIALIZATION_ERROR,
+            metadata={"action": action, "data_type": data_type},
+            **kwargs,
+        )
+
+
 # Convenience functions for common errors
+
+
+def cache_connection_failed(service: str = "Redis", error: Optional[Exception] = None) -> CacheConnectionError:
+    """Create a cache connection error with context."""
+    return CacheConnectionError(
+        service=service,
+        message=get_error_message(ErrorCode.CACHE_CONNECTION_FAILED, service=service),
+        detail=str(error) if error else None,
+    )
+
+
+def cache_read_failed(key: str, error: Optional[Exception] = None) -> CacheOperationError:
+    """Create a cache read error."""
+    return CacheOperationError(
+        operation="read",
+        key=key,
+        message=get_error_message(ErrorCode.CACHE_OPERATION_FAILED, operation="read"),
+        detail=str(error) if error else None,
+    )
+
+
+def cache_write_failed(key: str, error: Optional[Exception] = None) -> CacheOperationError:
+    """Create a cache write error."""
+    return CacheOperationError(
+        operation="write",
+        key=key,
+        message=get_error_message(ErrorCode.CACHE_OPERATION_FAILED, operation="write"),
+        detail=str(error) if error else None,
+    )
+
+
+def cache_delete_failed(pattern: str, error: Optional[Exception] = None) -> CacheOperationError:
+    """Create a cache delete error."""
+    return CacheOperationError(
+        operation="delete",
+        key=pattern,
+        message=get_error_message(ErrorCode.CACHE_OPERATION_FAILED, operation="delete"),
+        detail=str(error) if error else None,
+    )
+
+
+def cache_serialization_failed(data_type: type, error: Optional[Exception] = None) -> CacheSerializationError:
+    """Create a serialization error."""
+    return CacheSerializationError(
+        action="serialize",
+        data_type=data_type.__name__,
+        message=get_error_message(ErrorCode.CACHE_SERIALIZATION_ERROR, action="serialize"),
+        detail=str(error) if error else None,
+    )
+
+
+def cache_deserialization_failed(error: Optional[Exception] = None) -> CacheSerializationError:
+    """Create a deserialization error."""
+    return CacheSerializationError(
+        action="deserialize",
+        message=get_error_message(ErrorCode.CACHE_SERIALIZATION_ERROR, action="deserialize"),
+        detail=str(error) if error else None,
+    )
 
 
 def invalid_parameter(param: str, value: Any, reason: str) -> ValidationError:
@@ -294,6 +422,156 @@ def invalid_element_code(value: str) -> ValidationError:
         error_code=ErrorCode.INVALID_ELEMENT_CODE,
         param="element_code",
         detail=f"Received: '{value}'. Use /elements endpoint to see valid codes.",
+    )
+
+
+def invalid_flag(value: str) -> ValidationError:
+    """Create an error for invalid flag."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_FLAG_CODE, value=value),
+        error_code=ErrorCode.INVALID_FLAG_CODE,
+        param="flag",
+        detail=f"Received: '{value}'. Use /flags endpoint to see valid codes.",
+    )
+
+
+def invalid_donor_code(value: str) -> ValidationError:
+    """Create an error for invalid donor code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_DONOR_CODE, value=value),
+        error_code=ErrorCode.INVALID_DONOR_CODE,
+        param="donor_code",
+        detail=f"Received: '{value}'. Use /donors endpoint to see valid codes.",
+    )
+
+
+def invalid_source_code(value: str) -> ValidationError:
+    """Create an error for invalid source code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_SOURCE_CODE, value=value),
+        error_code=ErrorCode.INVALID_SOURCE_CODE,
+        param="source_code",
+        detail=f"Received: '{value}'. Use /sources endpoint to see valid codes.",
+    )
+
+
+def invalid_purpose_code(value: str) -> ValidationError:
+    """Create an error for invalid purpose code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_PURPOSE_CODE, value=value),
+        error_code=ErrorCode.INVALID_PURPOSE_CODE,
+        param="purpose_code",
+        detail=f"Received: '{value}'. Use /purposes endpoint to see valid codes.",
+    )
+
+
+def invalid_sex_code(value: str) -> ValidationError:
+    """Create an error for invalid sex code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_SEX_CODE, value=value),
+        error_code=ErrorCode.INVALID_SEX_CODE,
+        param="sex_code",
+        detail=f"Received: '{value}'. Use /sexs endpoint to see valid codes.",
+    )
+
+
+def invalid_release_code(value: str) -> ValidationError:
+    """Create an error for invalid release code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_RELEASE_CODE, value=value),
+        error_code=ErrorCode.INVALID_RELEASE_CODE,
+        param="release_code",
+        detail=f"Received: '{value}'. Use /releases endpoint to see valid codes.",
+    )
+
+
+def invalid_reporter_country_code(value: str) -> ValidationError:
+    """Create an error for invalid reporter_country code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_REPORTER_COUNTRY_CODE, value=value),
+        error_code=ErrorCode.INVALID_REPORTER_COUNTRY_CODE,
+        param="reporter_country_code",
+        detail=f"Received: '{value}'. Use /reporter_country_codes endpoint to see valid codes.",
+    )
+
+
+def invalid_partner_country_code(value: str) -> ValidationError:
+    """Create an error for invalid partner_country code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_PARTNER_COUNTRY_CODE, value=value),
+        error_code=ErrorCode.INVALID_PARTNER_COUNTRY_CODE,
+        param="partner_country_code",
+        detail=f"Received: '{value}'. Use /partner_country_codes endpoint to see valid codes.",
+    )
+
+
+def invalid_recipient_country_code(value: str) -> ValidationError:
+    """Create an error for invalid recipient_country code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_RECIPIENT_COUNTRY_CODE, value=value),
+        error_code=ErrorCode.INVALID_RECIPIENT_COUNTRY_CODE,
+        param="recipient_country_code",
+        detail=f"Received: '{value}'. Use /recipient_country_codes endpoint to see valid codes.",
+    )
+
+
+def invalid_currency_code(value: str) -> ValidationError:
+    """Create an error for invalid currency code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_CURRENCY_CODE, value=value),
+        error_code=ErrorCode.INVALID_CURRENCY_CODE,
+        param="currency_code",
+        detail=f"Received: '{value}'. Use /currencies endpoint to see valid codes.",
+    )
+
+
+def invalid_survey_code(value: str) -> ValidationError:
+    """Create an error for invalid survey code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_SURVEY_CODE, value=value),
+        error_code=ErrorCode.INVALID_SURVEY_CODE,
+        param="survey_code",
+        detail=f"Received: '{value}'. Use /surveys endpoint to see valid codes.",
+    )
+
+
+def invalid_population_age_group_code(value: str) -> ValidationError:
+    """Create an error for invalid population age group code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_POPULATION_AGE_GROUP_CODE, value=value),
+        error_code=ErrorCode.INVALID_POPULATION_AGE_GROUP_CODE,
+        param="population_age_group_code",
+        detail=f"Received: '{value}'. Use /population_age_groups endpoint to see valid codes.",
+    )
+
+
+def invalid_indicator_code(value: str) -> ValidationError:
+    """Create an error for invalid indicator code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_INDICATOR_CODE, value=value),
+        error_code=ErrorCode.INVALID_INDICATOR_CODE,
+        param="indicator_code",
+        detail=f"Received: '{value}'. Use /indicators endpoint to see valid codes.",
+    )
+
+
+def invalid_food_group_code(value: str) -> ValidationError:
+    """Create an error for invalid food group code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_FOOD_GROUP_CODE, value=value),
+        error_code=ErrorCode.INVALID_FOOD_GROUP_CODE,
+        param="food_group_code",
+        detail=f"Received: '{value}'. Use /food_groups endpoint to see valid codes.",
+    )
+
+
+def invalid_geographic_level_code(value: str) -> ValidationError:
+    """Create an error for invalid geographic level code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_GEOGRAPHIC_LEVEL_CODE, value=value),
+        error_code=ErrorCode.INVALID_GEOGRAPHIC_LEVEL_CODE,
+        param="geographic_level_code",
+        detail=f"Received: '{value}'. Use /geographic_levels endpoint to see valid codes.",
     )
 
 

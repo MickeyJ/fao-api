@@ -19,6 +19,8 @@ class DevelopmentAssistanceToAgriculture(Base):
     id = Column(Integer, primary_key=True)
     # Foreign key to donors
     donor_code_id = Column(Integer, ForeignKey("donors.id"), index=True)
+    # Foreign key to recipient_country_codes
+    recipient_country_code_id = Column(Integer, ForeignKey("recipient_country_codes.id"), index=True)
     # Foreign key to item_codes
     item_code_id = Column(Integer, ForeignKey("item_codes.id"), index=True)
     # Foreign key to elements
@@ -27,9 +29,6 @@ class DevelopmentAssistanceToAgriculture(Base):
     purpose_code_id = Column(Integer, ForeignKey("purposes.id"), index=True)
     # Foreign key to flags
     flag_id = Column(Integer, ForeignKey("flags.id"), index=True)
-    recipient_country_code = Column(String, nullable=False, index=False)
-    recipient_country_code_m49 = Column(String, nullable=False, index=False)
-    recipient_country = Column(String, nullable=False, index=False)
     year_code = Column(String(8), nullable=False, index=False)
     year = Column(SmallInteger, nullable=False, index=True)
     unit = Column(String(50), nullable=False, index=False)
@@ -39,10 +38,10 @@ class DevelopmentAssistanceToAgriculture(Base):
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
     
-    #     #         #         #             #         #             #         #             #         #             #         #             #         #         #             #         #         #         #         #             #             
+    #     #         #         #             #         #             #         #             #         #             #         #             #         #             #         #         #             #         #         #         #         #             #             
     #         # __table_args__ = (
     #     Index("ix_5d93d99f_uniq_uniq", 
-    #         'donor_code_id', 'item_code_id', 'element_code_id', 'purpose_code_id', 'flag_id', 'year', 'unit',
+    #         'donor_code_id', 'recipient_country_code_id', 'item_code_id', 'element_code_id', 'purpose_code_id', 'flag_id', 'year', 'unit',
     #         unique=True),
     # )
     #         

@@ -6,18 +6,18 @@ from .prices import router as prices
 
 prices_api = APIRouter(
   prefix=f"/{settings.api_version_prefix}", 
-  tags=["prices"],
+  # tags=["prices"],
 )
 
 prices_api.include_router(
   prices_archive, 
   prefix=f"/prices", 
-  tags=["prices", "prices_archive"],
+  tags=["prices_archive"],
 )
 prices_api.include_router(
   prices, 
   prefix=f"/prices", 
-  tags=["prices", "prices"],
+  tags=["prices"],
 )
 
 prices_group_map = {

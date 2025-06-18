@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class Flags(Base):
     __tablename__ = "flags"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     flag = Column(String(1), nullable=False, index=True)
     description = Column(String, nullable=False, index=False)

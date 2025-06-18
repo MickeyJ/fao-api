@@ -1,3 +1,5 @@
+DROP MATERIALIZED VIEW IF EXISTS price_ratios_lcu CASCADE;
+CREATE MATERIALIZED VIEW price_ratios_lcu AS
 WITH annual_prices AS (
     SELECT
         ac.id as area_id,
@@ -55,4 +57,5 @@ JOIN normalized_prices p2
     ON p1.year = p2.year
     AND p1.item_code = p2.item_code
     AND p1.area_code < p2.area_code
-WHERE p2.price > 0;  -- Avoid division by zero
+WHERE p2.price > 0
+WITH NO DATA;

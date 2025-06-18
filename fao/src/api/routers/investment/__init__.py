@@ -11,43 +11,43 @@ from .investment_machinery import router as investment_machinery
 
 investment_api = APIRouter(
   prefix=f"/{settings.api_version_prefix}", 
-  tags=["investment"],
+  # tags=["investment"],
 )
 
 investment_api.include_router(
   investment_capital_stock, 
   prefix=f"/investment", 
-  tags=["investment", "investment_capital_stock"],
+  tags=["investment_capital_stock"],
 )
 investment_api.include_router(
   investment_country_investment_statistics_profile, 
   prefix=f"/investment", 
-  tags=["investment", "investment_country_investment_statistics_profile"],
+  tags=["investment_country_investment_statistics_profile"],
 )
 investment_api.include_router(
   investment_credit_agriculture, 
   prefix=f"/investment", 
-  tags=["investment", "investment_credit_agriculture"],
+  tags=["investment_credit_agriculture"],
 )
 investment_api.include_router(
   investment_foreign_direct_investment, 
   prefix=f"/investment", 
-  tags=["investment", "investment_foreign_direct_investment"],
+  tags=["investment_foreign_direct_investment"],
 )
 investment_api.include_router(
   investment_government_expenditure, 
   prefix=f"/investment", 
-  tags=["investment", "investment_government_expenditure"],
+  tags=["investment_government_expenditure"],
 )
 investment_api.include_router(
   investment_machinery_archive, 
   prefix=f"/investment", 
-  tags=["investment", "investment_machinery_archive"],
+  tags=["investment_machinery_archive"],
 )
 investment_api.include_router(
   investment_machinery, 
   prefix=f"/investment", 
-  tags=["investment", "investment_machinery"],
+  tags=["investment_machinery"],
 )
 
 investment_group_map = {

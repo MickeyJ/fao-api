@@ -28,16 +28,13 @@ else
     PYTHON = python
 endif
 
-.PHONY: all venv env-status initialize requirements install \
+.PHONY: all venv env-status install-init install install-update install-requirements \
 	run-api-local run-api-remote run-all-pipelines-local run-all-pipelines-remote \
-	use-remote-db use-local-db use-local-db-admin db-init db-upgrade-local db-revision-local \
-	db-stamp-local db-upgrade-remote db-revision-remote create-db-local-admin drop-db-local-admin \
-	clear-all-tables-local show-all-tables tf-fmt tf-validate tf-plan tf-apply \
-	NO-DIRECT-USE-run-api NO-DIRECT-USE-run-all-pipelines \
-	NO-DIRECT-USE-db-upgrade NO-DIRECT-USE-db-revision NO-DIRECT-USE-db-stamp \
-	NO-DIRECT-USE-create-db NO-DIRECT-USE-drop-db NO-DIRECT-USE-reset-db \
-	NO-DIRECT-USE-clear-all-tables
-
+	use-remote-db use-local-db use-local-db-admin db-update-local db-create-views-local \
+	db-refresh-views-local db-drop-views-local db-schema-diff-local db-update-remote \
+	db-create-views-remote db-refresh-views-remote db-drop-views-remote db-schema-diff-remote \
+	create-db-local-admin drop-db-local-admin clear-all-tables-local enable-rls-db-remote \
+	show-all-tables tf-init tf-fmt tf-validate tf-plan tf-apply
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 #  			Python Environment
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
@@ -51,19 +48,24 @@ env-status:
 	@echo "=== Environment Status ==="
 	$(ACTIVATE) echo "Python: $$(which $(PYTHON))"
 
-# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
-# 		Package Installation
-# =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
-initialize:
+# =-=-=--=-=-=-=-=-=-=
+# Package Installation
+# =-=-=--=-=-=-=-=-=-=
+install-init:
 	$(ACTIVATE) $(PYTHON) -m pip install pip-tools
 	$(ACTIVATE) $(PYTHON) -m piptools compile requirements.in
 	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
 
-requirements:
+install:
+	grep "^${pkg}" requirements.in || (echo "" >> requirements.in && echo "${pkg}" >> requirements.in)
 	$(ACTIVATE) $(PYTHON) -m piptools compile requirements.in
 	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
 
-install:
+install-update:
+	$(ACTIVATE) $(PYTHON) -m piptools compile requirements.in
+	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
+
+install-requirements:
 	$(ACTIVATE) $(PYTHON) -m piptools sync requirements.txt
 
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
@@ -90,19 +92,17 @@ NO-DIRECT-USE-run-api:
 # 			Pipeline commands
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 run-all-pipelines-local:
-	make use-local-db
-	@echo " "
-	@echo "Running pipeline on LOCAL database..."
-	$(MAKE) NO-DIRECT-USE-run-all-pipelines
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-run-all-pipelines host=local
 
 run-all-pipelines-remote:
 	make use-remote-db
-	@echo " "
-	@echo "Running pipeline on REMOTE database..."
-	$(MAKE) NO-DIRECT-USE-run-all-pipelines
+	$(MAKE) NO-DIRECT-USE-run-all-pipelines host=remote
 	make use-local-db
 
 NO-DIRECT-USE-run-all-pipelines:
+	@echo " "
+	@echo "Running pipeline on ${host} database..."
 	$(ACTIVATE) $(PYTHON) -m fao.src.db.pipelines
 
 
@@ -123,61 +123,69 @@ use-local-db-admin:
 
 
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
-#    Database Migrations (alembic)
+#    Database Setup/Update/ect.
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
-db-init:
-	@echo "Initialize Alembic"
-	alembic init migrations
 
-db-upgrade-local:
-	make use-local-db-admin
-	$(MAKE) NO-DIRECT-USE-db-upgrade db_type=LOCAL
-	make use-local-db
 
-db-revision-local:
-	make use-local-db-admin
-	$(MAKE) NO-DIRECT-USE-db-revision msg="${msg}" db_type=LOCAL
-	make use-local-db
+# LOCAL
+db-update-local:
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-db-update host=local
+db-create-views-local:
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-db-create-views host=local
+db-refresh-views-local:
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-db-refresh-views host=local
+db-drop-views-local:
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-db-drop-views host=local
+db-schema-diff-local:
+	$(MAKE) use-local-db-admin
+	$(MAKE) NO-DIRECT-USE-db-schema-diff host=local
 
-db-stamp-local:
-	make use-local-db-admin
-	$(MAKE) NO-DIRECT-USE-db-stamp db_type=LOCAL stamp="${stamp}"
-	$(MAKE) NO-DIRECT-USE-db-upgrade db_type=LOCAL
-	make use-local-db
 
-db-upgrade-remote:
-	make use-remote-db
-	$(MAKE) NO-DIRECT-USE-db-upgrade db_type=REMOTE
-	make use-local-db
+# REMOTE
+db-update-remote:
+	$(MAKE) use-remote-db
+	$(MAKE) NO-DIRECT-USE-db-update host=remote
+db-create-views-remote:
+	$(MAKE) use-remote-db
+	$(MAKE) NO-DIRECT-USE-db-create-views host=remote
+db-refresh-views-remote:
+	$(MAKE) use-remote-db
+	$(MAKE) NO-DIRECT-USE-db-refresh-views host=remote
+db-drop-views-remote:
+	$(MAKE) use-remote-db
+	$(MAKE) NO-DIRECT-USE-db-drop-views host=remote
+db-schema-diff-remote:
+	$(MAKE) use-local-db
+	$(MAKE) NO-DIRECT-USE-db-schema-diff host=remote
 
-db-revision-remote:
-	make use-remote-db
-	$(MAKE) NO-DIRECT-USE-db-revision msg="${msg}" db_type=REMOTE
-	make use-local-db
 
-NO-DIRECT-USE-db-stamp:
-	@echo " "
-	@echo "Setting ${db_type} database to migration ${stamp}..."
-	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -c "DELETE FROM alembic_version;"
-	@echo " "
-	alembic stamp ${stamp}
-
-NO-DIRECT-USE-db-upgrade:
-	@echo " "
-	@echo "Upgrading ${db_type} database..."
-	alembic upgrade head
-
-NO-DIRECT-USE-db-revision:
-	@echo " "
-	@echo "Creating revision on ${db_type} database..."
-	alembic revision --autogenerate -m "${msg}" 
+# DONT USE DIRECTLY
+NO-DIRECT-USE-db-update:
+	@echo "Updating ${host} database"
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.setup update
+NO-DIRECT-USE-db-create-views:
+	@echo "Creating ${host} database views"
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.setup create-views
+NO-DIRECT-USE-db-refresh-views:
+	@echo "Refreshing ${host} database views"
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.setup refresh-views
+NO-DIRECT-USE-db-drop-views:
+	@echo "Dropping ${host} database views"
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.setup drop-views
+NO-DIRECT-USE-db-schema-diff:
+	@echo "Compare ${host} database schema with the codebase models"
+	$(ACTIVATE) $(PYTHON) -m fao.src.db.schema_diff
 
 
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 # 			Database Modifications
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 create-db-local-admin:
-	make use-local-db-admin
+	make use-local-db
 	@echo " "
 	@echo "Creating local database 'fao'..."
 	$(MAKE) NO-DIRECT-USE-create-db
@@ -200,6 +208,11 @@ clear-all-tables-local:
 	$(MAKE) NO-DIRECT-USE-clear-all-tables
 	make use-local-db
 
+enable-rls-db-remote:
+	make use-remote-db
+	$(MAKE) enable-rls
+	make use-local-db
+
 show-all-tables:
 	@echo "Showing all tables in the database..."
 	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/select_all_tables.sql
@@ -220,9 +233,16 @@ NO-DIRECT-USE-clear-all-tables:
 	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" -f sql/clear_all_tables.sql
 
 
+
+NO-DIRECT-USE-enable-rls:
+	@echo "Enable RSL"
+	psql "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/postgres" -f sql/enable_rls.sql
+
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
 # 		 Terraform Commands
 # =-=-=--=-=-=-=-=-=-=-=--=-=-=-=-=-
+tf-init:
+	terraform -chdir=./terraform init
 tf-fmt:
 	terraform -chdir=./terraform fmt
 tf-validate:

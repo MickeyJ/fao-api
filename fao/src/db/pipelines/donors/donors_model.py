@@ -13,7 +13,7 @@ from fao.src.db.database import Base
 
 class Donors(Base):
     __tablename__ = "donors"
-    # Lookup table - use domain primary key
+    # Reference table - use domain primary key
     id = Column(Integer, primary_key=True)
     donor_code = Column(String, nullable=False, index=False)
     donor = Column(String, nullable=False, index=False)
