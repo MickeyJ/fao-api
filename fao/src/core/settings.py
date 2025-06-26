@@ -11,8 +11,8 @@ load_dotenv(override=True)
 class Settings(BaseSettings):
     # API Configuration
     api_version: str = "1.0.0"
-    api_title: str = "Food Price Analysis API"
-    api_description: str = "API for analyzing global food commodity prices"
+    api_title: str = "FAO API"
+    api_description: str = "SQL API for FAO data"
     api_port: int = 8000
     api_host: str = "localhost"
 

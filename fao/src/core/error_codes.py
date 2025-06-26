@@ -18,25 +18,30 @@ class ErrorCode(str, Enum):
 
     # Validation Errors (400)
     INVALID_PARAMETER = "INVALID_PARAMETER"
+
     INVALID_AREA_CODE = "INVALID_AREA_CODE"
-    INVALID_ITEM_CODE = "INVALID_ITEM_CODE"
-    INVALID_YEAR_RANGE = "INVALID_YEAR_RANGE"
-    INVALID_ELEMENT_CODE = "INVALID_ELEMENT_CODE"
-    INVALID_FLAG_CODE = "INVALID_FLAG_CODE"
-    INVALID_DONOR_CODE = "INVALID_DONOR_CODE"
-    INVALID_SOURCE_CODE = "INVALID_SOURCE_CODE"
-    INVALID_PURPOSE_CODE = "INVALID_PURPOSE_CODE"
-    INVALID_SEX_CODE = "INVALID_SEX_CODE"
-    INVALID_RELEASE_CODE = "INVALID_RELEASE_CODE"
     INVALID_REPORTER_COUNTRY_CODE = "INVALID_REPORTER_COUNTRY_CODE"
     INVALID_PARTNER_COUNTRY_CODE = "INVALID_PARTNER_COUNTRY_CODE"
     INVALID_RECIPIENT_COUNTRY_CODE = "INVALID_RECIPIENT_COUNTRY_CODE"
-    INVALID_CURRENCY_CODE = "INVALID_CURRENCY_CODE"
-    INVALID_SURVEY_CODE = "INVALID_SURVEY_CODE"
-    INVALID_POPULATION_AGE_GROUP_CODE = "INVALID_POPULATION_AGE_GROUP_CODE"
+    INVALID_ITEM_CODE = "INVALID_ITEM_CODE"
+    INVALID_ELEMENT_CODE = "INVALID_ELEMENT_CODE"
+    INVALID_FLAG = "INVALID_FLAG"
+    INVALID_ISO_CURRENCY_CODE = "INVALID_ISO_CURRENCY_CODE"
+    INVALID_SOURCE_CODE = "INVALID_SOURCE_CODE"
+    INVALID_RELEASE_CODE = "INVALID_RELEASE_CODE"
+    INVALID_SEX_CODE = "INVALID_SEX_CODE"
     INVALID_INDICATOR_CODE = "INVALID_INDICATOR_CODE"
+    INVALID_POPULATION_AGE_GROUP_CODE = "INVALID_POPULATION_AGE_GROUP_CODE"
+    INVALID_SURVEY_CODE = "INVALID_SURVEY_CODE"
+    INVALID_PURPOSE_CODE = "INVALID_PURPOSE_CODE"
+    INVALID_DONOR_CODE = "INVALID_DONOR_CODE"
     INVALID_FOOD_GROUP_CODE = "INVALID_FOOD_GROUP_CODE"
     INVALID_GEOGRAPHIC_LEVEL_CODE = "INVALID_GEOGRAPHIC_LEVEL_CODE"
+    INVALID_FOOD_VALUE_CODE = "INVALID_FOOD_VALUE_CODE"
+    INVALID_INDUSTRY_CODE = "INVALID_INDUSTRY_CODE"
+    INVALID_FACTOR_CODE = "INVALID_FACTOR_CODE"
+
+    INVALID_RANGE = "INVALID_RANGE"
     INVALID_DATE_FORMAT = "INVALID_DATE_FORMAT"
     INVALID_LIMIT = "INVALID_LIMIT"
     INVALID_OFFSET = "INVALID_OFFSET"
@@ -100,33 +105,38 @@ class ErrorCode(str, Enum):
 # Human-readable error messages with placeholders
 ERROR_MESSAGES: Dict[ErrorCode, str] = {
     # Validation errors
-    ErrorCode.INVALID_PARAMETER: "Invalid value for parameter '{param}': {reason}",
-    ErrorCode.INVALID_AREA_CODE: "Invalid area code '{value}'. Must be a valid ISO3 country code or FAO area code. Use /other/area_codes endpoint to see valid codes.",
-    ErrorCode.INVALID_ITEM_CODE: "Invalid item code '{value}'. Use /other/item_codes endpoint to see valid codes.",
-    ErrorCode.INVALID_YEAR_RANGE: "Year {value} is outside valid range (1961-2024)",
-    ErrorCode.INVALID_ELEMENT_CODE: "Invalid element code '{value}'. Use /other/elements endpoint to see valid codes.",
-    ErrorCode.INVALID_FLAG_CODE: "Invalid flag code '{value}'. Use /other/flags endpoint to see valid codes",
-    ErrorCode.INVALID_DONOR_CODE: "Invalid donor code '{value}'. Use /other/donors endpoint to see valid codes.",
-    ErrorCode.INVALID_SOURCE_CODE: "Invalid source code '{value}'. Use /other/sources endpoint to see valid codes.",
-    ErrorCode.INVALID_PURPOSE_CODE: "Invalid purpose code '{value}'. Use /other/purposes endpoint to see valid codes.",
-    ErrorCode.INVALID_SEX_CODE: "Invalid sex code '{value}'. Use /other/sexs endpoint to see valid codes.",
-    ErrorCode.INVALID_RELEASE_CODE: "Invalid release code '{value}'. Use /other/releases endpoint to see valid codes.",
-    ErrorCode.INVALID_REPORTER_COUNTRY_CODE: "Invalid reporter country code '{value}'. Use /other/reporter_country_codes endpoint to see valid codes.",
-    ErrorCode.INVALID_PARTNER_COUNTRY_CODE: "Invalid partner country code '{value}'. Use /other/partner_country_codes endpoint to see valid codes.",
-    ErrorCode.INVALID_RECIPIENT_COUNTRY_CODE: "Invalid recipient country code '{value}'. Use /other/recipient_country_codes endpoint to see valid codes.",
-    ErrorCode.INVALID_CURRENCY_CODE: "Invalid currency code '{value}'. Use /other/currencies endpoint to see valid codes.",
-    ErrorCode.INVALID_SURVEY_CODE: "Invalid survey code '{value}'. Use /other/surveys endpoint to see valid codes.",
-    ErrorCode.INVALID_POPULATION_AGE_GROUP_CODE: "Invalid population age group code '{value}'. Use /population/population_age_groups endpoint to see valid codes.",
-    ErrorCode.INVALID_INDICATOR_CODE: "Invalid indicator code '{value}'. Use /indicators/indicators endpoint to see valid codes.",
-    ErrorCode.INVALID_FOOD_GROUP_CODE: "Invalid food group code '{value}'. Use /food/food_groups endpoint to see valid codes.",
-    ErrorCode.INVALID_GEOGRAPHIC_LEVEL_CODE: "Invalid geographic level code '{value}'. Use /other/geographic_levels endpoint to see valid codes.",
+    ErrorCode.INVALID_PARAMETER: "Invalid value for parameter '{params}': {reason}",
+    
+    ErrorCode.INVALID_AREA_CODE: "Invalid area code '{value}'. Use /area_codes endpoint to see valid codes.",
+    ErrorCode.INVALID_REPORTER_COUNTRY_CODE: "Invalid reporter country code '{value}'. Use /reporter_country_codes endpoint to see valid codes.",
+    ErrorCode.INVALID_PARTNER_COUNTRY_CODE: "Invalid partner country code '{value}'. Use /partner_country_codes endpoint to see valid codes.",
+    ErrorCode.INVALID_RECIPIENT_COUNTRY_CODE: "Invalid recipient country code '{value}'. Use /recipient_country_codes endpoint to see valid codes.",
+    ErrorCode.INVALID_ITEM_CODE: "Invalid item code '{value}'. Use /item_codes endpoint to see valid codes.",
+    ErrorCode.INVALID_ELEMENT_CODE: "Invalid element code '{value}'. Use /elements endpoint to see valid codes.",
+    ErrorCode.INVALID_FLAG: "Invalid flag '{value}'. Use /flags endpoint to see valid codes.",
+    ErrorCode.INVALID_ISO_CURRENCY_CODE: "Invalid iso currency code '{value}'. Use /currencies endpoint to see valid codes.",
+    ErrorCode.INVALID_SOURCE_CODE: "Invalid source code '{value}'. Use /sources endpoint to see valid codes.",
+    ErrorCode.INVALID_RELEASE_CODE: "Invalid release code '{value}'. Use /releases endpoint to see valid codes.",
+    ErrorCode.INVALID_SEX_CODE: "Invalid sex code '{value}'. Use /sexs endpoint to see valid codes.",
+    ErrorCode.INVALID_INDICATOR_CODE: "Invalid indicator code '{value}'. Use /indicators endpoint to see valid codes.",
+    ErrorCode.INVALID_POPULATION_AGE_GROUP_CODE: "Invalid population age group code '{value}'. Use /population_age_groups endpoint to see valid codes.",
+    ErrorCode.INVALID_SURVEY_CODE: "Invalid survey code '{value}'. Use /surveys endpoint to see valid codes.",
+    ErrorCode.INVALID_PURPOSE_CODE: "Invalid purpose code '{value}'. Use /purposes endpoint to see valid codes.",
+    ErrorCode.INVALID_DONOR_CODE: "Invalid donor code '{value}'. Use /donors endpoint to see valid codes.",
+    ErrorCode.INVALID_FOOD_GROUP_CODE: "Invalid food group code '{value}'. Use /food_groups endpoint to see valid codes.",
+    ErrorCode.INVALID_GEOGRAPHIC_LEVEL_CODE: "Invalid geographic level code '{value}'. Use /geographic_levels endpoint to see valid codes.",
+    ErrorCode.INVALID_FOOD_VALUE_CODE: "Invalid food value code '{value}'. Use /food_values endpoint to see valid codes.",
+    ErrorCode.INVALID_INDUSTRY_CODE: "Invalid industry code '{value}'. Use /industries endpoint to see valid codes.",
+    ErrorCode.INVALID_FACTOR_CODE: "Invalid factor code '{value}'. Use /factors endpoint to see valid codes.",
+
+    ErrorCode.INVALID_RANGE: "{params} {value} is outside valid range",
     ErrorCode.INVALID_DATE_FORMAT: "Invalid date format. Expected: {expected_format}",
     ErrorCode.INVALID_LIMIT: "Limit must be between 1 and {max_limit}. Received: {value}",
     ErrorCode.INVALID_OFFSET: "Offset must be non-negative. Received: {value}",
-    ErrorCode.MISSING_REQUIRED_PARAMETER: "Missing required parameter: '{param}'",
+    ErrorCode.MISSING_REQUIRED_PARAMETER: "Missing required parameter: '{params}'",
     ErrorCode.INCOMPATIBLE_PARAMETERS: "Parameters '{param1}' and '{param2}' cannot be used together",
-    ErrorCode.PARAMETER_OUT_OF_RANGE: "Parameter '{param}' value {value} is outside allowed range [{min}, {max}]",
-    ErrorCode.TOO_MANY_VALUES: "Too many values for parameter '{param}'. Maximum allowed: {max}",
+    ErrorCode.PARAMETER_OUT_OF_RANGE: "Parameter '{params}' value {value} is outside allowed range [{min}, {max}]",
+    ErrorCode.TOO_MANY_VALUES: "Too many values for parameter '{params}'. Maximum allowed: {max}",
     # Data availability errors
     ErrorCode.NO_DATA_FOR_QUERY: "No data found matching your query parameters",
     ErrorCode.DATASET_NOT_FOUND: "Dataset '{dataset}' not found",

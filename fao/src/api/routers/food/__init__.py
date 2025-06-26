@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from fao.src.core import settings
 
 from .food_groups import router as food_groups
+from .food_values import router as food_values
 from .food_balance_sheets_historic import router as food_balance_sheets_historic
 from .food_balance_sheets import router as food_balance_sheets
 from .food_aid_shipments_wfp import router as food_aid_shipments_wfp
@@ -16,6 +17,11 @@ food_api.include_router(
   food_groups, 
   prefix=f"/food", 
   tags=["food_groups"],
+)
+food_api.include_router(
+  food_values, 
+  prefix=f"/food", 
+  tags=["food_values"],
 )
 food_api.include_router(
   food_balance_sheets_historic, 
@@ -45,6 +51,11 @@ food_group_map = {
             "name": "food_groups",
             "description": "",
             "path": f"/{ settings.api_version_prefix }/food/food_groups",
+        },
+        {
+            "name": "food_values",
+            "description": "",
+            "path": f"/{ settings.api_version_prefix }/food/food_values",
         },
         {
             "name": "food_balance_sheets_historic",

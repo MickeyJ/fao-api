@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import uvicorn
 from . import api_map
 from fao.src.core import settings
-from ..core.middleware import add_version_headers
+from fao.src.core.middleware import add_version_headers, QueryStringFlatteningMiddleware
 from fao.src.core.exceptions import FAOAPIError
 from fao.src.core.error_handlers import (
     fao_exception_handler,
@@ -71,6 +71,7 @@ app.add_exception_handler(Exception, generic_exception_handler)
 
 # Custom middleware
 app.middleware("http")(add_version_headers)
+app.add_middleware(QueryStringFlatteningMiddleware)
 
 
 # CORS middleware
