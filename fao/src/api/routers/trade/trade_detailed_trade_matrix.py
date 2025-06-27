@@ -19,38 +19,13 @@ from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.flags.flags_model import Flags
 
 # Import utilities
-from fao.src.api.utils.dataset_router import DatasetRouterHandler
+
+from fao.src.api.utils.router_handler import RouterHandler
 from .trade_detailed_trade_matrix_config import TradeDetailedTradeMatrixConfig
 from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
 from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
-from fao.src.api.utils.parameter_parsers import (
-    parse_sort_parameter, 
-    parse_fields_parameter,
-    parse_aggregation_parameter
-)
 
-from fao.src.core.validation import (
-    is_valid_sort_direction,
-    is_valid_aggregation_function,
-    validate_fields_exist,
-    validate_model_has_columns,
-    is_valid_element_code,
-    is_valid_flag,
-    is_valid_item_code,
-    is_valid_partner_country_code,
-    is_valid_reporter_country_code,
-)
 
-from fao.src.core.exceptions import (
-    invalid_parameter,
-    missing_parameter,
-    incompatible_parameters,
-    invalid_element_code,
-    invalid_flag,
-    invalid_item_code,
-    invalid_partner_country_code,
-    invalid_reporter_country_code,
-)
 
 router = APIRouter(
     prefix="/trade_detailed_trade_matrix",
@@ -68,7 +43,6 @@ async def get_trade_detailed_trade_matrix_data(
     # Standard parameters
     limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
-
     # Filter parameters
     reporter_country_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by reporter_country_code code (comma-separated for multiple)"),
     reporter_countries: Optional[str] = Query(None, description="Filter by reporter_countries description (partial match)"),
@@ -88,7 +62,6 @@ async def get_trade_detailed_trade_matrix_data(
     value: Optional[Union[float, int]] = Query(None, description="Exact value"),
     value_min: Optional[Union[float, int]] = Query(None, description="Minimum value"),
     value_max: Optional[Union[float, int]] = Query(None, description="Maximum value"),
-
     # Option parameters  
     fields: Optional[List[str]] = Query(None, description="Comma-separated list of fields to return"),
     sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
@@ -109,7 +82,7 @@ async def get_trade_detailed_trade_matrix_data(
     - Multiple sorts: 'year:desc,value:asc'
     """
 
-    router_handler = DatasetRouterHandler(
+    router_handler = RouterHandler(
         db=db, 
         model=TradeDetailedTradeMatrix, 
         model_name="TradeDetailedTradeMatrix",
@@ -217,10 +190,10 @@ async def get_trade_detailed_trade_matrix_aggregated(
     response: Response,
     db: Session = Depends(get_db),
     # Grouping
-    group_by: str = Query(..., description="Comma-separated list of fields to group by"),
+    group_by: List[str] = Query(..., description="Comma-separated list of fields to group by"),
     # Aggregations
-    aggregations: str = Query(..., description="Comma-separated aggregations (e.g., 'value:sum,value:avg:avg_value')"),
-    # Standard
+    aggregations: List[str] = Query(..., description="Comma-separated aggregations (e.g., 'value:sum,value:avg:avg_value')"),
+    # Standard parameters
     limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
     # Filter parameters
@@ -243,7 +216,6 @@ async def get_trade_detailed_trade_matrix_aggregated(
     value_min: Optional[Union[float, int]] = Query(None, description="Minimum value"),
     value_max: Optional[Union[float, int]] = Query(None, description="Maximum value"),
     # Option parameters  
-    fields: Optional[List[str]] = Query(None, description="Comma-separated list of fields to return"),
     sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
 ):
     """Get aggregated data with grouping and multiple aggregation functions.
@@ -262,145 +234,191 @@ async def get_trade_detailed_trade_matrix_aggregated(
     # general values, sort and filter param values, 
     # fk specific validation (checking against actual reference table data)
     # ------------------------------------------------------------------------
-    
-    
-    agg_configs = [parse_aggregation_parameter(a.strip()) for a in aggregations.split(',')]
-    
-    # Build query
-    query_builder = QueryBuilder(select(TradeDetailedTradeMatrix))
-    filter_count = 0
-    joined_tables = set()
-    
-    # ------------------------
-    # Apply same filtering here
-    # ------------------------
-    
-    # Add grouping
-    group_columns = [getattr(TradeDetailedTradeMatrix, f) for f in group_fields]
-    query_builder.add_grouping(group_columns)
-    
-    # Add aggregations
-    for agg_config in agg_configs:
-        field = agg_config['field']
-        if not hasattr(TradeDetailedTradeMatrix, field):
-            raise HTTPException(400, f"Invalid aggregation field: {field}")
-        
-        column = getattr(TradeDetailedTradeMatrix, field)
-        agg_type = AggregationType(agg_config['function'])
-        query_builder.add_aggregation(column, agg_type, agg_config['alias'])
-    
-    # Apply aggregations
-    query_builder.apply_aggregations()
-    
-    # Get count before pagination
-    total_count = query_builder.get_count(db)
-    
-    # Apply sorting
-    if sort:
-        # Parse sort fields - can include aggregation aliases
-        sort_parts = []
-        for sort_field in sort.split(','):
-            field, direction = sort_field.strip().split(':')
-            
-            # Check if it's a group field or aggregation alias
-            if field in group_fields:
-                column = getattr(TradeDetailedTradeMatrix, field)
-                sort_parts.append((column, direction))
-            else:
-                # It might be an aggregation alias - handled by the query
-                pass
-        
-        if sort_parts:
-            query_builder.add_ordering(sort_parts)
-    
-    # Apply pagination and execute
-    results = query_builder.paginate(limit, offset).execute(db)
-    results = query_builder.parse_results(results)
-    
-    # Format results
-    data = []
-    for row in results:
-        response_fields = {}
-        
-        # Add group by fields
-        for i, field in enumerate(group_fields):
-            response_fields[field] = row[i]
-        
-        # Add aggregation results
-        for j, agg_config in enumerate(agg_configs):
-            response_fields[agg_config['alias']] = row[len(group_fields) + j]
-        
-        data.append(response_fields)
-    
-    # Build response
-    pagination = PaginationBuilder.build_pagination_meta(total_count, limit, offset)
-
-    # Collect all parameters for links
-    all_params = {
-        'limit': limit,
-        'offset': offset,
-        'reporter_country_code': reporter_country_code,
-        'reporter_countries': reporter_countries,
-        'partner_country_code': partner_country_code,
-        'partner_countries': partner_countries,
-        'item_code': item_code,
-        'item': item,
-        'element_code': element_code,
-        'element': element,
-        'flag': flag,
-        'description': description,
-        'year_code': year_code,
-        'year': year,
-        'year_min': year_min,
-        'year_max': year_max,
-        'unit': unit,
-        'value': value,
-        'value_min': value_min,
-        'value_max': value_max,
-        'fields': fields,
-        'sort': sort,
-    }
-
-    links = PaginationBuilder.build_links(
-        str(request.url), 
-        total_count, 
-        limit, 
-        offset, 
-        all_params
+    router_handler = RouterHandler(
+        db=db, 
+        model=TradeDetailedTradeMatrix, 
+        model_name="TradeDetailedTradeMatrix",
+        table_name="trade_detailed_trade_matrix",
+        request=request, 
+        response=response, 
+        config=config
     )
 
-    # Set response headers
-    ResponseFormatter.set_pagination_headers(response, total_count, limit, offset, links)
+     # Setup aggregation mode
+    router_handler.setup_aggregation(group_by, aggregations)
 
-    return ResponseFormatter.format_data_response(data, pagination, links, filter_count)
+    # Clean parameters
+    reporter_country_code = router_handler.clean_param(reporter_country_code, "multi")
+    reporter_countries = router_handler.clean_param(reporter_countries, "like")
+    partner_country_code = router_handler.clean_param(partner_country_code, "multi")
+    partner_countries = router_handler.clean_param(partner_countries, "like")
+    item_code = router_handler.clean_param(item_code, "multi")
+    item = router_handler.clean_param(item, "like")
+    element_code = router_handler.clean_param(element_code, "multi")
+    element = router_handler.clean_param(element, "like")
+    flag = router_handler.clean_param(flag, "multi")
+    description = router_handler.clean_param(description, "like")
+    year_code = router_handler.clean_param(year_code, "like")
+    year = router_handler.clean_param(year, "exact")
+    year_min = router_handler.clean_param(year_min, "range_min")
+    year_max = router_handler.clean_param(year_max, "range_max")
+    unit = router_handler.clean_param(unit, "like")
+    value = router_handler.clean_param(value, "exact")
+    value_min = router_handler.clean_param(value_min, "range_min")
+    value_max = router_handler.clean_param(value_max, "range_max")
+
+    param_configs = {
+        "limit": limit,
+        "offset": offset,
+        "reporter_country_code": reporter_country_code,
+        "reporter_countries": reporter_countries,
+        "partner_country_code": partner_country_code,
+        "partner_countries": partner_countries,
+        "item_code": item_code,
+        "item": item,
+        "element_code": element_code,
+        "element": element,
+        "flag": flag,
+        "description": description,
+        "year_code": year_code,
+        "year": year,
+        "year_min": year_min,
+        "year_max": year_max,
+        "unit": unit,
+        "value": value,
+        "value_min": value_min,
+        "value_max": value_max,
+        "sort": sort,
+    }
+
+    # Validate fields and sort for aggregation
+    if router_handler.is_aggregation:
+        # For aggregations, available fields are group_by fields + aggregation aliases
+        router_handler.all_data_fields = set(router_handler.get_aggregation_response_fields())
+    
+    requested_fields, sort_columns = router_handler.validate_fields_and_sort_parameters(fields=[], sort=sort)
+
+    # Validate filter parameters
+    router_handler.validate_filter_parameters(param_configs, db)
+
+    # Apply filters
+    filter_count = router_handler.apply_filters_from_config(param_configs)
+    
+    # Add grouping to query
+    group_columns = []
+    for field in router_handler.group_fields:
+        if field in router_handler.query_builder._field_to_column:
+            group_columns.append(router_handler.query_builder._field_to_column[field])
+        else:
+            raise HTTPException(400, f"Cannot group by '{field}' - field not available")
+
+    router_handler.query_builder.add_grouping(group_columns)
+    
+    # Add aggregations to query
+    for agg_config in router_handler.agg_configs:
+        if agg_config['field'] in router_handler.query_builder._field_to_column:
+            column = router_handler.query_builder._field_to_column[agg_config['field']]
+        else:
+            raise HTTPException(400, f"Cannot aggregate '{agg_config['field']}' - field not available")
+        
+        agg_type = AggregationType(agg_config['function'])
+        router_handler.query_builder.add_aggregation(column, agg_type, agg_config['alias'], agg_config['round_to'])
+    
+    # Apply aggregations
+    router_handler.query_builder.apply_aggregations()
+    
+    # Get count
+    total_count = router_handler.query_builder.get_count(db)
+
+    # Apply sorting
+    if sort_columns:
+        router_handler.query_builder.add_ordering(sort_columns)
+    else:
+        # Default sort for aggregations could be first group field
+        if router_handler.group_fields:
+            router_handler.query_builder.add_ordering([(router_handler.group_fields[0], "asc")])
+
+    # Execute query
+    results = router_handler.query_builder.paginate(limit, offset).execute(db)
+
+    # Format aggregation results
+    response_data = router_handler.format_aggregation_results(results)
+
+    print(f"SQL Query: {router_handler.query_builder.query}")
+
+    # Build response
+    return router_handler.build_response(
+        request=request,
+        response=response,
+        data=response_data,
+        total_count=total_count,
+        filter_count=filter_count,
+        limit=limit,
+        offset=offset,
+        reporter_country_code=reporter_country_code,
+        reporter_countries=reporter_countries,
+        partner_country_code=partner_country_code,
+        partner_countries=partner_countries,
+        item_code=item_code,
+        item=item,
+        element_code=element_code,
+        element=element,
+        flag=flag,
+        description=description,
+        year_code=year_code,
+        year=year,
+        year_min=year_min,
+        year_max=year_max,
+        unit=unit,
+        value=value,
+        value_min=value_min,
+        value_max=value_max,
+        sort=sort,
+    )
 
 
 
 # ----------------------------------------
 # ========== Metadata Endpoints ==========
 # ----------------------------------------
-@router.get("/reporter_country_codes", summary="Get reporter_country_codes in trade_detailed_trade_matrix")
+@router.get("/reporter_country_codes", summary="Get ReporterCountryCodes in trade_detailed_trade_matrix")
 @cache_result(prefix="trade_detailed_trade_matrix:reporter_country_codes", ttl=604800)
 async def get_available_reporter_country_codes(
     db: Session = Depends(get_db),
     search: Optional[str] = Query(None, description="Search reporter_countries by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Include distribution statistics"),
 ):
     """Get all reporter countries in this trade dataset."""
+
     query = (
         select(
             ReporterCountryCodes.reporter_country_code,
             ReporterCountryCodes.reporter_countries,
-            func.count(TradeDetailedTradeMatrix.id).label('record_count')
         )
         .select_from(ReporterCountryCodes)
-        .join(TradeDetailedTradeMatrix, 
-              TradeDetailedTradeMatrix.reporter_country_code == ReporterCountryCodes.reporter_country_code)
         .where(ReporterCountryCodes.source_dataset == 'trade_detailed_trade_matrix')
         .group_by(
             ReporterCountryCodes.reporter_country_code,
             ReporterCountryCodes.reporter_countries
         )
     )
+
+    if include_distribution:
+        query = (
+            select(
+                ReporterCountryCodes.reporter_country_code,
+                ReporterCountryCodes.reporter_countries,
+                func.count(TradeDetailedTradeMatrix.id).label('record_count')
+            )
+            .select_from(ReporterCountryCodes)
+            .join(TradeDetailedTradeMatrix, 
+                TradeDetailedTradeMatrix.reporter_country_code == ReporterCountryCodes.reporter_country_code)
+            .where(ReporterCountryCodes.source_dataset == 'trade_detailed_trade_matrix')
+            .group_by(
+                ReporterCountryCodes.reporter_country_code,
+                ReporterCountryCodes.reporter_countries
+            )
+        )
     
     if search:
         query = query.where(
@@ -412,12 +430,17 @@ async def get_available_reporter_country_codes(
     
     query = query.order_by(ReporterCountryCodes.reporter_country_code)
     results = db.execute(query).all()
-    
-    return ResponseFormatter.format_metadata_response(
-        dataset="trade_detailed_trade_matrix",
-        metadata_type="reporter_countries",
-        total=len(results),
-        items=[
+
+    items = [
+        {
+            "reporter_country_code": r.reporter_country_code,
+            "reporter_countries": r.reporter_countries,
+        }
+        for r in results
+    ]
+
+    if include_distribution:
+        items = [
             {
                 "reporter_country_code": r.reporter_country_code,
                 "reporter_countries": r.reporter_countries,
@@ -425,13 +448,20 @@ async def get_available_reporter_country_codes(
             }
             for r in results
         ]
+    
+    return ResponseFormatter.format_metadata_response(
+        dataset="trade_detailed_trade_matrix",
+        metadata_type="reporter_countries",
+        total=len(results),
+        items=items
     )
 
-@router.get("/partner_country_codes", summary="Get partner_country_codes in trade_detailed_trade_matrix")
+@router.get("/partner_country_codes", summary="Get PartnerCountryCodes in trade_detailed_trade_matrix")
 @cache_result(prefix="trade_detailed_trade_matrix:partner_country_codes", ttl=604800)
 async def get_available_partner_country_codes(
     db: Session = Depends(get_db),
     search: Optional[str] = Query(None, description="Search partner_countries by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Include distribution statistics"),
     reporter_country_code: Optional[int] = Query(None, description="Filter partners for specific reporter"),
 ):
     """Get all partner countries in this trade dataset."""
@@ -440,13 +470,23 @@ async def get_available_partner_country_codes(
         select(
             PartnerCountryCodes.partner_country_code,
             PartnerCountryCodes.partner_countries,
-            func.count(TradeDetailedTradeMatrix.id).label('record_count')
         )
         .select_from(PartnerCountryCodes)
-        .join(TradeDetailedTradeMatrix, 
-              TradeDetailedTradeMatrix.partner_country_code_id == PartnerCountryCodes.id)
         .where(PartnerCountryCodes.source_dataset == 'trade_detailed_trade_matrix')
     )
+
+    if include_distribution:
+        query = (
+            select(
+                PartnerCountryCodes.partner_country_code,
+                PartnerCountryCodes.partner_countries,
+                func.count(TradeDetailedTradeMatrix.id).label('record_count')
+            )
+            .select_from(PartnerCountryCodes)
+            .join(TradeDetailedTradeMatrix, 
+                TradeDetailedTradeMatrix.partner_country_code_id == PartnerCountryCodes.id)
+            .where(PartnerCountryCodes.source_dataset == 'trade_detailed_trade_matrix')
+        )
     
     # Filter by reporter if specified
     if reporter_country_code:
@@ -472,12 +512,17 @@ async def get_available_partner_country_codes(
     
     query = query.order_by(PartnerCountryCodes.partner_country_code)
     results = db.execute(query).all()
-    
-    response = ResponseFormatter.format_metadata_response(
-        dataset="trade_detailed_trade_matrix",
-        metadata_type="partner_countries",
-        total=len(results),
-        items=[
+
+    items = [
+        {
+            "partner_country_code": r.partner_country_code,
+            "partner_countries": r.partner_countries,
+        }
+        for r in results
+    ]
+
+    if include_distribution:
+        items = [
             {
                 "partner_country_code": r.partner_country_code,
                 "partner_countries": r.partner_countries,
@@ -485,6 +530,12 @@ async def get_available_partner_country_codes(
             }
             for r in results
         ]
+    
+    response = ResponseFormatter.format_metadata_response(
+        dataset="trade_detailed_trade_matrix",
+        metadata_type="partner_countries",
+        total=len(results),
+        items=items
     )
     
     if reporter_country_code:
@@ -492,15 +543,17 @@ async def get_available_partner_country_codes(
     
     return response
 
-@router.get("/item_codes", summary="Get item_codes in trade_detailed_trade_matrix")
+@router.get("/item_codes", summary="Get ItemCodes in trade_detailed_trade_matrix")
 @cache_result(prefix="trade_detailed_trade_matrix:item_codes", ttl=604800)
 async def get_available_item_codes(
     db: Session = Depends(get_db),
     search: Optional[str] = Query(None, description="Search item by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Set True to include distribution statistics"),
     limit: int = Query(1000, ge=1, le=10000),
     offset: int = Query(0, ge=0),
 ):
     """Get all items available in this dataset with their codes and metadata."""
+
     query = (
         select(
             ItemCodes.item_code,
@@ -508,10 +561,8 @@ async def get_available_item_codes(
             ItemCodes.item_code_cpc,
             ItemCodes.item_code_fbs,
             ItemCodes.item_code_sdg,
-            func.count(TradeDetailedTradeMatrix.id).label('record_count')
         )
         .select_from(ItemCodes)
-        .join(TradeDetailedTradeMatrix, TradeDetailedTradeMatrix.item_code_id == ItemCodes.id)
         .where(ItemCodes.source_dataset == 'trade_detailed_trade_matrix')
         .group_by(
             ItemCodes.item_code,
@@ -521,6 +572,28 @@ async def get_available_item_codes(
             ItemCodes.item_code_sdg
         )
     )
+
+    if include_distribution:
+        query = (
+            select(
+                ItemCodes.item_code,
+                ItemCodes.item,
+                ItemCodes.item_code_cpc,
+                ItemCodes.item_code_fbs,
+                ItemCodes.item_code_sdg,
+                func.count(TradeDetailedTradeMatrix.id).label('record_count')
+            )
+            .select_from(ItemCodes)
+            .join(TradeDetailedTradeMatrix, TradeDetailedTradeMatrix.item_code_id == ItemCodes.id)
+            .where(ItemCodes.source_dataset == 'trade_detailed_trade_matrix')
+            .group_by(
+                ItemCodes.item_code,
+                ItemCodes.item,
+                ItemCodes.item_code_cpc,
+                ItemCodes.item_code_fbs,
+                ItemCodes.item_code_sdg
+            )
+        )
     
     # Apply search filter
     if search:
@@ -541,12 +614,20 @@ async def get_available_item_codes(
     # Apply ordering and pagination
     query = query.order_by(ItemCodes.item_code).limit(limit).offset(offset)
     results = db.execute(query).all()
-    
-    return ResponseFormatter.format_metadata_response(
-        dataset="trade_detailed_trade_matrix",
-        metadata_type="items",
-        total=total_count,
-        items=[
+
+    items = [
+        {
+            "item_code": r.item_code,
+            "item": r.item,
+            "item_code_cpc": r.item_code_cpc,
+            "item_code_fbs": r.item_code_fbs,
+            "item_code_sdg": r.item_code_sdg,
+        }
+        for r in results
+    ]
+
+    if include_distribution:
+        items = [
             {
                 "item_code": r.item_code,
                 "item": r.item,
@@ -557,30 +638,50 @@ async def get_available_item_codes(
             }
             for r in results
         ]
+    
+    return ResponseFormatter.format_metadata_response(
+        dataset="trade_detailed_trade_matrix",
+        metadata_type="items",
+        total=total_count,
+        items=items
     )
 
-@router.get("/elements", summary="Get elements in trade_detailed_trade_matrix")
+@router.get("/elements", summary="Get Elements in trade_detailed_trade_matrix")
 @cache_result(prefix="trade_detailed_trade_matrix:elements", ttl=604800)
 async def get_available_elements(
     db: Session = Depends(get_db),
     search: Optional[str] = Query(None, description="Search element by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Set True to include distribution statistics"),
 ):
     """Get all elements (measures/indicators) available in this dataset."""
     query = (
         select(
             Elements.element_code,
             Elements.element,
-            func.count(TradeDetailedTradeMatrix.id).label('record_count')
         )
         .select_from(Elements)
-        .join(TradeDetailedTradeMatrix, TradeDetailedTradeMatrix.element_code_id == Elements.id)
         .where(Elements.source_dataset == 'trade_detailed_trade_matrix')
         .group_by(
             Elements.element_code,
             Elements.element,
         )
     )
-    
+
+    if include_distribution:
+        query = (
+            select(
+                Elements.element_code,
+                Elements.element,
+                func.count(TradeDetailedTradeMatrix.id).label('record_count')
+            )
+            .select_from(Elements)
+            .join(TradeDetailedTradeMatrix, Elements.id == TradeDetailedTradeMatrix.element_id)
+            .where(Elements.source_dataset == 'trade_detailed_trade_matrix')
+            .group_by(
+                Elements.element_code,
+                Elements.element,
+            )
+        )
     # Apply filters
     if search:
         query = query.where(
@@ -594,12 +695,17 @@ async def get_available_elements(
     # Execute
     query = query.order_by(Elements.element_code)
     results = db.execute(query).all()
-    
-    return ResponseFormatter.format_metadata_response(
-        dataset="trade_detailed_trade_matrix",
-        metadata_type="elements",
-        total=len(results),
-        items=[
+    items = [
+        {
+            "element_code": r.element_code,
+            "element": r.element,
+        }
+        for r in results
+    ]
+
+    if include_distribution:
+        # If distribution is requested, we need to count records for each element
+        items = [
             {
                 "element_code": r.element_code,
                 "element": r.element,
@@ -607,14 +713,20 @@ async def get_available_elements(
             }
             for r in results
         ]
+        
+    return ResponseFormatter.format_metadata_response(
+        dataset="trade_detailed_trade_matrix",
+        metadata_type="elements",
+        total=len(results),
+        items=items
     )
 
-@router.get("/flags", summary="Get flags in trade_detailed_trade_matrix")
+@router.get("/flags", summary="Get Flags in trade_detailed_trade_matrix")
 @cache_result(prefix="trade_detailed_trade_matrix:flags", ttl=604800)
 async def get_available_flags(
     db: Session = Depends(get_db),
     search: Optional[str] = Query(None, description="Search description by name or code"),
-    include_distribution: bool = Query(False, description="Include distribution statistics"),
+    include_distribution: Optional[bool] = Query(False, description="Include distribution statistics"),
 ):
     """Get data quality flag information and optionally their distribution in the dataset."""
     # Get all flags used in this dataset
@@ -626,7 +738,7 @@ async def get_available_flags(
             func.count(TradeDetailedTradeMatrix.id).label('record_count')
         )
         .join(TradeDetailedTradeMatrix, Flags.id == TradeDetailedTradeMatrix.flag_id)
-        .group_by(Flags.flag, Flags.description)
+        .group_by(Flags.id, Flags.flag, Flags.description)
         .order_by(func.count(TradeDetailedTradeMatrix.id).desc())
     )
 
@@ -646,7 +758,7 @@ async def get_available_flags(
         info = {
             "flag_id": flag.id,
             "flag": flag.flag,
-            "flag_description": flag.flag_description,
+            "description": flag.description,
         }
         
         if include_distribution:

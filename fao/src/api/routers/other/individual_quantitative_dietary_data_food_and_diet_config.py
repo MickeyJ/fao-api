@@ -341,3 +341,96 @@ class IndividualQuantitativeDietaryDataFoodAndDietConfig:
             "filter_column": "value",
         },
     ])
+
+    field_metadata: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
+        "survey_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "survey": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "geographic_level_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "geographic_level": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "population_age_group_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "population_age_group": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "food_group_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "food_group": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "indicator_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "indicator": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "element_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "element": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "sex_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "sex": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "unit": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": True,
+        },
+        "value": {
+            "type": "Float",
+            "is_numeric": True,
+            "nullable": False,
+        },
+        "flag": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "note": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+    })

@@ -233,3 +233,71 @@ class IndicatorsFromHouseholdSurveysConfig:
             "filter_column": "value",
         },
     ])
+
+    field_metadata: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
+        "survey_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "survey": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "breakdown_variable_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "breakdown_variable": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "breadown_by_sex_of_the_household_head_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "breadown_by_sex_of_the_household_head": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "indicator_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "indicator": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "element_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "element": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "unit": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "value": {
+            "type": "Float",
+            "is_numeric": True,
+            "nullable": False,
+        },
+        "flag": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+    })

@@ -14,30 +14,13 @@ from fao.src.db.pipelines.geographic_levels.geographic_levels_model import Geogr
 
 
 # Import utilities
-from fao.src.api.utils.dataset_router import DatasetRouterHandler
+
+from fao.src.api.utils.router_handler import RouterHandler
 from .geographic_levels_config import GeographicLevelsConfig
 from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
 from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
-from fao.src.api.utils.parameter_parsers import (
-    parse_sort_parameter, 
-    parse_fields_parameter,
-    parse_aggregation_parameter
-)
 
-from fao.src.core.validation import (
-    is_valid_sort_direction,
-    is_valid_aggregation_function,
-    validate_fields_exist,
-    validate_model_has_columns,
-    is_valid_geographic_level_code,
-)
 
-from fao.src.core.exceptions import (
-    invalid_parameter,
-    missing_parameter,
-    incompatible_parameters,
-    invalid_geographic_level_code,
-)
 
 router = APIRouter(
     prefix="/geographic_levels",
@@ -55,12 +38,10 @@ async def get_geographic_levels_data(
     # Standard parameters
     limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
-
     # Filter parameters
     geographic_level_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by geographic level code (comma-separated for multiple)"),
     geographic_level: Optional[str] = Query(None, description="Filter by geographic level (partial match)"),
     source_dataset: Optional[str] = Query(None, description="Filter by source dataset (partial match)"),
-
     # Option parameters  
     fields: Optional[List[str]] = Query(None, description="Comma-separated list of fields to return"),
     sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
@@ -81,7 +62,7 @@ async def get_geographic_levels_data(
     - Multiple sorts: 'year:desc,value:asc'
     """
 
-    router_handler = DatasetRouterHandler(
+    router_handler = RouterHandler(
         db=db, 
         model=GeographicLevels, 
         model_name="GeographicLevels",

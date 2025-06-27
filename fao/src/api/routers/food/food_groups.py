@@ -14,30 +14,13 @@ from fao.src.db.pipelines.food_groups.food_groups_model import FoodGroups
 
 
 # Import utilities
-from fao.src.api.utils.dataset_router import DatasetRouterHandler
+
+from fao.src.api.utils.router_handler import RouterHandler
 from .food_groups_config import FoodGroupsConfig
 from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
 from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
-from fao.src.api.utils.parameter_parsers import (
-    parse_sort_parameter, 
-    parse_fields_parameter,
-    parse_aggregation_parameter
-)
 
-from fao.src.core.validation import (
-    is_valid_sort_direction,
-    is_valid_aggregation_function,
-    validate_fields_exist,
-    validate_model_has_columns,
-    is_valid_food_group_code,
-)
 
-from fao.src.core.exceptions import (
-    invalid_parameter,
-    missing_parameter,
-    incompatible_parameters,
-    invalid_food_group_code,
-)
 
 router = APIRouter(
     prefix="/food_groups",
@@ -55,12 +38,10 @@ async def get_food_groups_data(
     # Standard parameters
     limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
-
     # Filter parameters
     food_group_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by food group code (comma-separated for multiple)"),
     food_group: Optional[str] = Query(None, description="Filter by food group (partial match)"),
     source_dataset: Optional[str] = Query(None, description="Filter by source dataset (partial match)"),
-
     # Option parameters  
     fields: Optional[List[str]] = Query(None, description="Comma-separated list of fields to return"),
     sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
@@ -81,7 +62,7 @@ async def get_food_groups_data(
     - Multiple sorts: 'year:desc,value:asc'
     """
 
-    router_handler = DatasetRouterHandler(
+    router_handler = RouterHandler(
         db=db, 
         model=FoodGroups, 
         model_name="FoodGroups",

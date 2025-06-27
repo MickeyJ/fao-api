@@ -14,30 +14,13 @@ from fao.src.db.pipelines.indicators.indicators_model import Indicators
 
 
 # Import utilities
-from fao.src.api.utils.dataset_router import DatasetRouterHandler
+
+from fao.src.api.utils.router_handler import RouterHandler
 from .indicators_config import IndicatorsConfig
 from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
 from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
-from fao.src.api.utils.parameter_parsers import (
-    parse_sort_parameter, 
-    parse_fields_parameter,
-    parse_aggregation_parameter
-)
 
-from fao.src.core.validation import (
-    is_valid_sort_direction,
-    is_valid_aggregation_function,
-    validate_fields_exist,
-    validate_model_has_columns,
-    is_valid_indicator_code,
-)
 
-from fao.src.core.exceptions import (
-    invalid_parameter,
-    missing_parameter,
-    incompatible_parameters,
-    invalid_indicator_code,
-)
 
 router = APIRouter(
     prefix="/indicators",
@@ -55,12 +38,10 @@ async def get_indicators_data(
     # Standard parameters
     limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
-
     # Filter parameters
     indicator_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by indicator code (comma-separated for multiple)"),
     indicator: Optional[str] = Query(None, description="Filter by indicator (partial match)"),
     source_dataset: Optional[str] = Query(None, description="Filter by source dataset (partial match)"),
-
     # Option parameters  
     fields: Optional[List[str]] = Query(None, description="Comma-separated list of fields to return"),
     sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
@@ -81,7 +62,7 @@ async def get_indicators_data(
     - Multiple sorts: 'year:desc,value:asc'
     """
 
-    router_handler = DatasetRouterHandler(
+    router_handler = RouterHandler(
         db=db, 
         model=Indicators, 
         model_name="Indicators",

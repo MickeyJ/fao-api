@@ -71,3 +71,26 @@ class AreaCodesConfig:
 
     range_configs: List[Dict[str, Any]] = field(default_factory=lambda: [
     ])
+
+    field_metadata: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
+        "area_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "area": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "area_code_m49": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": True,
+        },
+        "source_dataset": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+    })

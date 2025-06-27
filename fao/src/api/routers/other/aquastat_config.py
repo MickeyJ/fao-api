@@ -203,3 +203,51 @@ class AquastatConfig:
             "filter_column": "value",
         },
     ])
+
+    field_metadata: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
+        "area_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "area": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "element_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "element": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "unit": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": True,
+        },
+        "year": {
+            "type": "SmallInteger",
+            "is_numeric": True,
+            "nullable": False,
+        },
+        "year_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "value": {
+            "type": "Float",
+            "is_numeric": True,
+            "nullable": False,
+        },
+        "flag": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+    })

@@ -14,30 +14,13 @@ from fao.src.db.pipelines.population_age_groups.population_age_groups_model impo
 
 
 # Import utilities
-from fao.src.api.utils.dataset_router import DatasetRouterHandler
+
+from fao.src.api.utils.router_handler import RouterHandler
 from .population_age_groups_config import PopulationAgeGroupsConfig
 from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
 from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
-from fao.src.api.utils.parameter_parsers import (
-    parse_sort_parameter, 
-    parse_fields_parameter,
-    parse_aggregation_parameter
-)
 
-from fao.src.core.validation import (
-    is_valid_sort_direction,
-    is_valid_aggregation_function,
-    validate_fields_exist,
-    validate_model_has_columns,
-    is_valid_population_age_group_code,
-)
 
-from fao.src.core.exceptions import (
-    invalid_parameter,
-    missing_parameter,
-    incompatible_parameters,
-    invalid_population_age_group_code,
-)
 
 router = APIRouter(
     prefix="/population_age_groups",
@@ -55,12 +38,10 @@ async def get_population_age_groups_data(
     # Standard parameters
     limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
-
     # Filter parameters
     population_age_group_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by population age group code (comma-separated for multiple)"),
     population_age_group: Optional[str] = Query(None, description="Filter by population age group (partial match)"),
     source_dataset: Optional[str] = Query(None, description="Filter by source dataset (partial match)"),
-
     # Option parameters  
     fields: Optional[List[str]] = Query(None, description="Comma-separated list of fields to return"),
     sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
@@ -81,7 +62,7 @@ async def get_population_age_groups_data(
     - Multiple sorts: 'year:desc,value:asc'
     """
 
-    router_handler = DatasetRouterHandler(
+    router_handler = RouterHandler(
         db=db, 
         model=PopulationAgeGroups, 
         model_name="PopulationAgeGroups",

@@ -261,3 +261,81 @@ class WorldCensusAgricultureConfig:
             "filter_column": "value",
         },
     ])
+
+    field_metadata: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
+        "area_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "area_code_m49": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "area": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "item_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "item": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "element_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "element": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "wca_round_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "wca_round": {
+            "type": "Integer",
+            "is_numeric": True,
+            "nullable": False,
+        },
+        "census_year_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "census_year": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "unit": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "value": {
+            "type": "Float",
+            "is_numeric": True,
+            "nullable": False,
+        },
+        "flag": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "note": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": True,
+        },
+    })

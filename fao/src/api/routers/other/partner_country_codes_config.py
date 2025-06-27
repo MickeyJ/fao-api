@@ -71,3 +71,26 @@ class PartnerCountryCodesConfig:
 
     range_configs: List[Dict[str, Any]] = field(default_factory=lambda: [
     ])
+
+    field_metadata: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
+        "partner_country_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "partner_countries": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "partner_country_code_m49": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "source_dataset": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+    })

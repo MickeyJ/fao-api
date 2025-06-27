@@ -87,3 +87,36 @@ class ItemCodesConfig:
 
     range_configs: List[Dict[str, Any]] = field(default_factory=lambda: [
     ])
+
+    field_metadata: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
+        "item_code": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "item": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+        "item_code_cpc": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": True,
+        },
+        "item_code_fbs": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": True,
+        },
+        "item_code_sdg": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": True,
+        },
+        "source_dataset": {
+            "type": "String",
+            "is_numeric": False,
+            "nullable": False,
+        },
+    })
