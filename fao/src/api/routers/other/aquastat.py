@@ -1,530 +1,787 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, Response
+# templates/api_router.py.jinja2 (refactored main)
+from fastapi import APIRouter, Depends, Query, HTTPException, Response, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, or_, text, String, Integer, Float, SmallInteger
-from typing import Optional, Union, Dict, List
+from sqlalchemy import select, func, or_, and_, String
+from typing import Optional, List, Union
+from datetime import datetime
+
+from fao.logger import logger
 from fao.src.core.cache import cache_result
 from fao.src.core import settings
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.aquastat.aquastat_model import Aquastat
-import math
-from datetime import datetime
-# Import core/reference tables for joins
+
+
 from fao.src.db.pipelines.area_codes.area_codes_model import AreaCodes
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.flags.flags_model import Flags
+
+# Import utilities
+
+from fao.src.api.utils.router_handler import RouterHandler
+from .aquastat_config import AquastatConfig
+from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
+from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
+
+
 
 router = APIRouter(
     prefix="/aquastat",
     responses={404: {"description": "Not found"}},
 )
 
-def create_pagination_links(base_url: str, total_count: int, limit: int, offset: int, params: dict) -> dict:
-    """Generate pagination links for response headers"""
-    links = {}
-    total_pages = math.ceil(total_count / limit) if limit > 0 else 1
-    current_page = (offset // limit) + 1 if limit > 0 else 1
-    
-    # Remove offset from params to rebuild
-    query_params = {k: v for k, v in params.items() if k not in ['offset', 'limit'] and v is not None}
-    
-    # Helper to build URL
-    def build_url(new_offset: int) -> str:
-        params_str = "&".join([f"{k}={v}" for k, v in query_params.items()])
-        return f"{base_url}?limit={limit}&offset={new_offset}" + (f"&{params_str}" if params_str else "")
-    
-    # First page
-    links['first'] = build_url(0)
-    
-    # Last page
-    last_offset = (total_pages - 1) * limit
-    links['last'] = build_url(last_offset)
-    
-    # Next page (if not on last page)
-    if current_page < total_pages:
-        links['next'] = build_url(offset + limit)
-    
-    # Previous page (if not on first page)
-    if current_page > 1:
-        links['prev'] = build_url(max(0, offset - limit))
-    
-    return links
 
-@router.get("/")
-@cache_result(prefix="aquastat", ttl=86400, exclude_params=["response", "db"])
-def get_aquastat(
+config = AquastatConfig()
+
+@router.get("/", summary="Get aquastat data")
+async def get_aquastat_data(
+    request: Request,
     response: Response,
-    limit: int = Query(100, le=1000, ge=1, description="Maximum records to return"),
+    db: Session = Depends(get_db),
+    # Standard parameters
+    limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
-    area_code: Optional[str] = Query(None, description="Filter by area_codes code"),
-    area: Optional[str] = Query(None, description="Filter by area_codes description"),
-    element_code: Optional[str] = Query(None, description="Filter by elements code"),
-    element: Optional[str] = Query(None, description="Filter by elements description"),
-    flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
-    # Dynamic column filters based on model
+    # Filter parameters
+    area_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by area_code code (comma-separated for multiple)"),
+    area: Optional[str] = Query(None, description="Filter by area description (partial match)"),
+    element_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by element_code code (comma-separated for multiple)"),
+    element: Optional[str] = Query(None, description="Filter by element description (partial match)"),
+    flag: Optional[Union[str, List[str]]] = Query(None, description="Filter by flag code (comma-separated for multiple)"),
+    description: Optional[str] = Query(None, description="Filter by description description (partial match)"),
     unit: Optional[str] = Query(None, description="Filter by unit (partial match)"),
-    unit_exact: Optional[str] = Query(None, description="Filter by exact unit"),
     year: Optional[int] = Query(None, description="Filter by exact year"),
     year_min: Optional[int] = Query(None, description="Minimum year"),
     year_max: Optional[int] = Query(None, description="Maximum year"),
     year_code: Optional[str] = Query(None, description="Filter by year code (partial match)"),
-    year_code_exact: Optional[str] = Query(None, description="Filter by exact year code"),
     value: Optional[Union[float, int]] = Query(None, description="Exact value"),
     value_min: Optional[Union[float, int]] = Query(None, description="Minimum value"),
     value_max: Optional[Union[float, int]] = Query(None, description="Maximum value"),
-    include_all_reference_columns: bool = Query(False, description="Include all columns from reference tables"),
-    fields: Optional[str] = Query(None, description="Comma-separated list of fields to return"),
-    sort: Optional[str] = Query(None, description="Sort fields (use - prefix for descending, e.g., 'year,-value')"),
-    db: Session = Depends(get_db)
-) -> Dict:
-    """
-    Get aquastat data with filters and pagination.
-    
-    ## Pagination
-    - Use `limit` and `offset` for page-based navigation
-    - Response includes pagination metadata and total count
-    - Link headers provided for easy navigation
-    
+    # Option parameters  
+    fields: Optional[List[str]] = Query(None, description="Comma-separated list of fields to return"),
+    sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
+):
+    """Get aquastat data with advanced filtering and pagination.
+
     ## Filtering
-    - area_code: Filter by area_codes code
-    - area: Filter by area_codes description (partial match)
-    - element_code: Filter by elements code
-    - element: Filter by elements description (partial match)
-    - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
+    - Use comma-separated values for multiple selections (e.g., element_code=102,489)
+    - Use _min/_max suffixes for range queries on numeric fields
+    - Use _exact suffix for exact string matches
+
+    ## Pagination
+    - Use limit and offset parameters
+    - Check pagination metadata in response headers
+
+    ## Sorting
+    - Use format: field:direction (e.g., 'year:desc')
+    - Multiple sorts: 'year:desc,value:asc'
+    """
+
+    router_handler = RouterHandler(
+        db=db, 
+        model=Aquastat, 
+        model_name="Aquastat",
+        table_name="aquastat",
+        request=request, 
+        response=response, 
+        config=config
+    )
+
+    area_code = router_handler.clean_param(area_code, "multi")
+    area = router_handler.clean_param(area, "like")
+    element_code = router_handler.clean_param(element_code, "multi")
+    element = router_handler.clean_param(element, "like")
+    flag = router_handler.clean_param(flag, "multi")
+    description = router_handler.clean_param(description, "like")
+    unit = router_handler.clean_param(unit, "like")
+    year = router_handler.clean_param(year, "exact")
+    year_min = router_handler.clean_param(year_min, "range_min")
+    year_max = router_handler.clean_param(year_max, "range_max")
+    year_code = router_handler.clean_param(year_code, "like")
+    value = router_handler.clean_param(value, "exact")
+    value_min = router_handler.clean_param(value_min, "range_min")
+    value_max = router_handler.clean_param(value_max, "range_max")
+
+    param_configs = {
+        "limit": limit,
+        "offset": offset,
+        "area_code": area_code,
+        "area": area,
+        "element_code": element_code,
+        "element": element,
+        "flag": flag,
+        "description": description,
+        "unit": unit,
+        "year": year,
+        "year_min": year_min,
+        "year_max": year_max,
+        "year_code": year_code,
+        "value": value,
+        "value_min": value_min,
+        "value_max": value_max,
+        "fields": fields,
+        "sort": sort,
+    }
+    # Validate field and sort parameter
+    requested_fields, sort_columns = router_handler.validate_fields_and_sort_parameters(fields, sort)
+
+    router_handler.validate_filter_parameters(param_configs, db)
+
+    filter_count = router_handler.apply_filters_from_config(param_configs)
+    total_count = router_handler.query_builder.get_count(db)
+
+    if sort_columns:
+        router_handler.query_builder.add_ordering(sort_columns)
+    else:
+        router_handler.query_builder.add_ordering(router_handler.get_default_sort())
+
+    # Apply pagination and execute
+    results = router_handler.query_builder.paginate(limit, offset).execute(db)
+
+    response_data = router_handler.filter_response_data(results, requested_fields)
+
+    return router_handler.build_response(
+        request=request,
+        response=response,
+        data=response_data,
+        total_count=total_count,
+        filter_count=filter_count,
+        limit=limit,
+        offset=offset,
+        area_code=area_code,
+        area=area,
+        element_code=element_code,
+        element=element,
+        flag=flag,
+        description=description,
+        unit=unit,
+        year=year,
+        year_min=year_min,
+        year_max=year_max,
+        year_code=year_code,
+        value=value,
+        value_min=value_min,
+        value_max=value_max,
+        fields=fields,
+        sort=sort,
+    )
+
+# templates/partials/router_aggregation_endpoints.jinja2
+@router.get("/aggregate", summary="Get aggregated aquastat data")
+async def get_aquastat_aggregated(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    # Grouping
+    group_by: List[str] = Query(..., description="Comma-separated list of fields to group by"),
+    # Aggregations
+    aggregations: List[str] = Query(..., description="Comma-separated aggregations (e.g., 'value:sum,value:avg:avg_value')"),
+    # Standard parameters
+    limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
+    offset: int = Query(0, ge=0, description="Number of records to skip"),
+    # Filter parameters
+    area_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by area_code code (comma-separated for multiple)"),
+    area: Optional[str] = Query(None, description="Filter by area description (partial match)"),
+    element_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by element_code code (comma-separated for multiple)"),
+    element: Optional[str] = Query(None, description="Filter by element description (partial match)"),
+    flag: Optional[Union[str, List[str]]] = Query(None, description="Filter by flag code (comma-separated for multiple)"),
+    description: Optional[str] = Query(None, description="Filter by description description (partial match)"),
+    unit: Optional[str] = Query(None, description="Filter by unit (partial match)"),
+    year: Optional[int] = Query(None, description="Filter by exact year"),
+    year_min: Optional[int] = Query(None, description="Minimum year"),
+    year_max: Optional[int] = Query(None, description="Maximum year"),
+    year_code: Optional[str] = Query(None, description="Filter by year code (partial match)"),
+    value: Optional[Union[float, int]] = Query(None, description="Exact value"),
+    value_min: Optional[Union[float, int]] = Query(None, description="Minimum value"),
+    value_max: Optional[Union[float, int]] = Query(None, description="Maximum value"),
+    # Option parameters  
+    sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
+):
+    """Get aggregated data with grouping and multiple aggregation functions.
     
-    Dataset-specific filters:
-    - unit: Partial match (case-insensitive)
-    - unit_exact: Exact match
-    - year: Exact year
-    - year_min/year_max: Year range
-    - year_code: Partial match (case-insensitive)
-    - year_code_exact: Exact match
-    - value: Exact value
-    - value_min/value_max: Value range
+    ## Examples
+    - Sum by year: `group_by=year&aggregations=value:sum`
+    - Average by area and year: `group_by=area_code,year&aggregations=value:avg`
+    - Multiple aggregations: `aggregations=value:sum:total_value,value:avg:average_value`
     
-    ## Response Format
-    - Returns paginated data with metadata
-    - Total count included for client-side pagination
-    - Links to first, last, next, and previous pages
+    ## Aggregation Functions
+    - sum, avg, min, max, count, count_distinct
     """
     
-    # Build column list for select
-    columns = []
-    column_map = {}  # Map of field name to column object
+    # ------------------------------------------------------------------------
+    # Needs same validation: 
+    # general values, sort and filter param values, 
+    # fk specific validation (checking against actual reference table data)
+    # ------------------------------------------------------------------------
+    router_handler = RouterHandler(
+        db=db, 
+        model=Aquastat, 
+        model_name="Aquastat",
+        table_name="aquastat",
+        request=request, 
+        response=response, 
+        config=config
+    )
+
+     # Setup aggregation mode
+    router_handler.setup_aggregation(group_by, aggregations)
+
+    # Clean parameters
+    area_code = router_handler.clean_param(area_code, "multi")
+    area = router_handler.clean_param(area, "like")
+    element_code = router_handler.clean_param(element_code, "multi")
+    element = router_handler.clean_param(element, "like")
+    flag = router_handler.clean_param(flag, "multi")
+    description = router_handler.clean_param(description, "like")
+    unit = router_handler.clean_param(unit, "like")
+    year = router_handler.clean_param(year, "exact")
+    year_min = router_handler.clean_param(year_min, "range_min")
+    year_max = router_handler.clean_param(year_max, "range_max")
+    year_code = router_handler.clean_param(year_code, "like")
+    value = router_handler.clean_param(value, "exact")
+    value_min = router_handler.clean_param(value_min, "range_min")
+    value_max = router_handler.clean_param(value_max, "range_max")
+
+    param_configs = {
+        "limit": limit,
+        "offset": offset,
+        "area_code": area_code,
+        "area": area,
+        "element_code": element_code,
+        "element": element,
+        "flag": flag,
+        "description": description,
+        "unit": unit,
+        "year": year,
+        "year_min": year_min,
+        "year_max": year_max,
+        "year_code": year_code,
+        "value": value,
+        "value_min": value_min,
+        "value_max": value_max,
+        "sort": sort,
+    }
+
+    # Validate fields and sort for aggregation
+    if router_handler.is_aggregation:
+        # For aggregations, available fields are group_by fields + aggregation aliases
+        router_handler.all_data_fields = set(router_handler.get_aggregation_response_fields())
     
-    # Parse requested fields if specified (preserving order)
-    requested_fields = [field.strip() for field in fields.split(',') if field.strip()] if fields else None
-    requested_fields_set = set(requested_fields) if requested_fields else None
+    requested_fields, sort_columns = router_handler.validate_fields_and_sort_parameters(fields=[], sort=sort)
+
+    # Validate filter parameters
+    router_handler.validate_filter_parameters(param_configs, db)
+
+    # Apply filters
+    filter_count = router_handler.apply_filters_from_config(param_configs)
     
-    # First, build a map of all available columns
-    # Main table columns
-    for col in Aquastat.__table__.columns:
-        if col.name not in ['created_at', 'updated_at']:
-            column_map[col.name] = col
+    # Add grouping to query
+    group_columns = []
+    for field in router_handler.group_fields:
+        if field in router_handler.query_builder._field_to_column:
+            group_columns.append(router_handler.query_builder._field_to_column[field])
+        else:
+            raise HTTPException(400, f"Cannot group by '{field}' - field not available")
+
+    router_handler.query_builder.add_grouping(group_columns)
     
-    # Reference table columns
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in AreaCodes.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "area_codes_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "area_codes_area_code"
-        column_map[col_alias] = AreaCodes.area_code.label(col_alias)
-        col_alias = "area_codes_area"
-        column_map[col_alias] = AreaCodes.area.label(col_alias)
-        col_alias = "area_codes_area_code_m49"
-        column_map[col_alias] = AreaCodes.area_code_m49.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Elements.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "elements_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "elements_element_code"
-        column_map[col_alias] = Elements.element_code.label(col_alias)
-        col_alias = "elements_element"
-        column_map[col_alias] = Elements.element.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Flags.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "flags_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "flags_flag"
-        column_map[col_alias] = Flags.flag.label(col_alias)
-        col_alias = "flags_description"
-        column_map[col_alias] = Flags.description.label(col_alias)
-    
-    # Now build columns list in the requested order
-    if requested_fields:
-        # Add columns in the order specified by the user
-        for field_name in requested_fields:
-            if field_name in column_map:
-                columns.append(column_map[field_name])
-            # If id is requested, include it even though we normally exclude it
-            elif field_name == 'id' and hasattr(Aquastat, 'id'):
-                columns.append(Aquastat.id)
-    else:
-        # No specific fields requested, use all available columns in default order
-        for col in Aquastat.__table__.columns:
-            if col.name not in ['created_at', 'updated_at']:
-                columns.append(col)
+    # Add aggregations to query
+    for agg_config in router_handler.agg_configs:
+        if agg_config['field'] in router_handler.query_builder._field_to_column:
+            column = router_handler.query_builder._field_to_column[agg_config['field']]
+        else:
+            raise HTTPException(400, f"Cannot aggregate '{agg_config['field']}' - field not available")
         
-        # Add reference columns in default order
-        if include_all_reference_columns:
-            for col in AreaCodes.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("area_codes_" + col.name))
-        else:
-            columns.append(AreaCodes.area_code.label("area_codes_area_code"))
-            columns.append(AreaCodes.area.label("area_codes_area"))
-            columns.append(AreaCodes.area_code_m49.label("area_codes_area_code_m49"))
-        if include_all_reference_columns:
-            for col in Elements.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("elements_" + col.name))
-        else:
-            columns.append(Elements.element_code.label("elements_element_code"))
-            columns.append(Elements.element.label("elements_element"))
-        if include_all_reference_columns:
-            for col in Flags.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("flags_" + col.name))
-        else:
-            columns.append(Flags.flag.label("flags_flag"))
-            columns.append(Flags.description.label("flags_description"))
+        agg_type = AggregationType(agg_config['function'])
+        router_handler.query_builder.add_aggregation(column, agg_type, agg_config['alias'], agg_config['round_to'])
     
-    # Build base query
-    query = select(*columns).select_from(Aquastat)
+    # Apply aggregations
+    router_handler.query_builder.apply_aggregations()
     
-    # Add joins
-    query = query.outerjoin(AreaCodes, Aquastat.area_code_id == AreaCodes.id)
-    query = query.outerjoin(Elements, Aquastat.element_code_id == Elements.id)
-    query = query.outerjoin(Flags, Aquastat.flag_id == Flags.id)
-    
-    # Build filter conditions for both main query and count query
-    conditions = []
-    
-    # Apply foreign key filters
-    if area_code:
-        conditions.append(AreaCodes.area_code == area_code)
-    if area:
-        conditions.append(AreaCodes.area.ilike("%" + area + "%"))
-    if element_code:
-        conditions.append(Elements.element_code == element_code)
-    if element:
-        conditions.append(Elements.element.ilike("%" + element + "%"))
-    if flag:
-        conditions.append(Flags.flag == flag)
-    if description:
-        conditions.append(Flags.description.ilike("%" + description + "%"))
-    
-    # Apply dataset-specific column filters
-    if unit is not None:
-        conditions.append(Aquastat.unit.ilike("%" + unit + "%"))
-    if unit_exact is not None:
-        conditions.append(Aquastat.unit == unit_exact)
-    if year is not None:
-        conditions.append(Aquastat.year == year)
-    if year_min is not None:
-        conditions.append(Aquastat.year >= year_min)
-    if year_max is not None:
-        conditions.append(Aquastat.year <= year_max)
-    if year_code is not None:
-        conditions.append(Aquastat.year_code.ilike("%" + year_code + "%"))
-    if year_code_exact is not None:
-        conditions.append(Aquastat.year_code == year_code_exact)
-    if value is not None:
-        conditions.append(Aquastat.value == value)
-    if value_min is not None:
-        conditions.append(Aquastat.value >= value_min)
-    if value_max is not None:
-        conditions.append(Aquastat.value <= value_max)
-    
-    # Apply all conditions
-    if conditions:
-        query = query.where(*conditions)
-    
-    # Apply sorting if specified
-    if sort:
-        order_by_clauses = []
-        for sort_field in sort.split(','):
-            sort_field = sort_field.strip()
-            if sort_field:  # Skip empty strings
-                if sort_field.startswith('-'):
-                    # Descending order
-                    field_name = sort_field[1:].strip()
-                    if hasattr(Aquastat, field_name):
-                        order_by_clauses.append(getattr(Aquastat, field_name).desc())
-                else:
-                    # Ascending order
-                    if hasattr(Aquastat, sort_field):
-                        order_by_clauses.append(getattr(Aquastat, sort_field))
-        
-        if order_by_clauses:
-            query = query.order_by(*order_by_clauses)
+    # Get count
+    total_count = router_handler.query_builder.get_count(db)
+
+    # Apply sorting
+    if sort_columns:
+        router_handler.query_builder.add_ordering(sort_columns)
     else:
-        # Default ordering by ID for consistent pagination
-        query = query.order_by(Aquastat.id)
-    
-    # Get total count with filters applied
-    count_query = select(func.count()).select_from(Aquastat)
-    
-    # Add joins to count query
-    count_query = count_query.outerjoin(AreaCodes, Aquastat.area_code_id == AreaCodes.id)
-    count_query = count_query.outerjoin(Elements, Aquastat.element_code_id == Elements.id)
-    count_query = count_query.outerjoin(Flags, Aquastat.flag_id == Flags.id)
-    
-    # Apply same conditions to count query
-    if conditions:
-        count_query = count_query.where(*conditions)
-    
-    total_count = db.execute(count_query).scalar() or 0
-    
-    # Calculate pagination metadata
-    total_pages = math.ceil(total_count / limit) if limit > 0 else 1
-    current_page = (offset // limit) + 1 if limit > 0 else 1
-    
-    # Apply pagination
-    query = query.offset(offset).limit(limit)
-    
+        # Default sort for aggregations could be first group field
+        if router_handler.group_fields:
+            router_handler.query_builder.add_ordering([(router_handler.group_fields[0], "asc")])
+
     # Execute query
-    results = db.execute(query).mappings().all()
-    
-    # Convert results preserving field order
-    ordered_data = []
-    if requested_fields:
-        # Preserve the exact order from the fields parameter
-        for row in results:
-            ordered_row = {}
-            for field_name in requested_fields:
-                if field_name in row:
-                    ordered_row[field_name] = row[field_name]
-                elif field_name == 'id' and 'id' in row:
-                    ordered_row['id'] = row['id']
-            ordered_data.append(ordered_row)
-    else:
-        # No specific order requested, use as-is
-        ordered_data = [dict(row) for row in results]
-    
-    # Build pagination links
-    base_url = str(router.url_path_for('get_aquastat'))
-    
-    # Collect all query parameters
-    all_params = {
-        'limit': limit,
-        'offset': offset,
-        'area_code': area_code,
-        'area': area,
-        'element_code': element_code,
-        'element': element,
-        'flag': flag,
-        'description': description,
-        'unit': unit,
-        'unit_exact': unit_exact,
-        'year': year,
-        'year_min': year_min,
-        'year_max': year_max,
-        'year_code': year_code,
-        'year_code_exact': year_code_exact,
-        'value': value,
-        'value_min': value_min,
-        'value_max': value_max,
-        'include_all_reference_columns': include_all_reference_columns,
-        'fields': fields,
-        'sort': sort,
-    }
-    
-    links = create_pagination_links(base_url, total_count, limit, offset, all_params)
-    
-    # Set response headers
-    response.headers["X-Total-Count"] = str(total_count)
-    response.headers["X-Total-Pages"] = str(total_pages)
-    response.headers["X-Current-Page"] = str(current_page)
-    response.headers["X-Per-Page"] = str(limit)
-    
-    # Build Link header
-    link_parts = []
-    for rel, url in links.items():
-        link_parts.append(f'<{url}>; rel="{rel}"')
-    if link_parts:
-        response.headers["Link"] = ", ".join(link_parts)
-    
-    # Return response with pagination metadata
-    return {
-        "data": ordered_data,
-        "pagination": {
-            "total": total_count,
-            "total_pages": total_pages,
-            "current_page": current_page,
-            "per_page": limit,
-            "from": offset + 1 if results else 0,
-            "to": offset + len(results),
-            "has_next": current_page < total_pages,
-            "has_prev": current_page > 1,
-        },
-        "links": links,
-        "_meta": {
-            "generated_at": datetime.utcnow().isoformat(),
-            "filters_applied": sum(1 for v in all_params.values() if v is not None and v != '' and v != False),
-        }
-    }
+    results = router_handler.query_builder.paginate(limit, offset).execute(db)
+
+    # Format aggregation results
+    response_data = router_handler.format_aggregation_results(results)
+
+    print(f"SQL Query: {router_handler.query_builder.query}")
+
+    # Build response
+    return router_handler.build_response(
+        request=request,
+        response=response,
+        data=response_data,
+        total_count=total_count,
+        filter_count=filter_count,
+        limit=limit,
+        offset=offset,
+        area_code=area_code,
+        area=area,
+        element_code=element_code,
+        element=element,
+        flag=flag,
+        description=description,
+        unit=unit,
+        year=year,
+        year_min=year_min,
+        year_max=year_max,
+        year_code=year_code,
+        value=value,
+        value_min=value_min,
+        value_max=value_max,
+        sort=sort,
+    )
 
 
-# Keep all existing metadata endpoints unchanged...
-# Metadata endpoints for understanding the dataset
 
-@router.get("/areas")
-@cache_result(prefix="aquastat:areas", ttl=604800)
-def get_available_areas(db: Session = Depends(get_db)):
-    """Get all areas with data in this dataset"""
+# ----------------------------------------
+# ========== Metadata Endpoints ==========
+# ----------------------------------------
+@router.get("/area_codes", summary="Get AreaCodes in aquastat")
+@cache_result(prefix="aquastat:area_codes", ttl=604800)
+async def get_available_area_codes(
+    db: Session = Depends(get_db),
+    search: Optional[str] = Query(None, description="Search area by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Set True to include distribution statistics"),
+    limit: int = Query(1000, ge=1, le=10000),
+    offset: int = Query(0, ge=0),
+):
+    """Get all areas (countries/regions) with data in this dataset."""
+
     query = (
         select(
             AreaCodes.area_code,
             AreaCodes.area,
             AreaCodes.area_code_m49,
         )
+        .select_from(AreaCodes)
         .where(AreaCodes.source_dataset == 'aquastat')
-        .order_by(AreaCodes.area_code)
+        .group_by(
+            AreaCodes.area_code,
+            AreaCodes.area,
+            AreaCodes.area_code_m49,
+        )
     )
+
+    if include_distribution:
+        query = (
+            select(
+                AreaCodes.area_code,
+                AreaCodes.area,
+                AreaCodes.area_code_m49,
+                func.count(Aquastat.id).label('record_count')
+            )
+            .select_from(AreaCodes)
+            .join(Aquastat, Aquastat.area_code_id == AreaCodes.id)
+            .where(AreaCodes.source_dataset == 'aquastat')
+            .group_by(
+                AreaCodes.area_code,
+                AreaCodes.area,
+                AreaCodes.area_code_m49,
+            )
+        )
     
+    # Apply filters
+    if search:
+        query = query.where(
+            or_(
+                AreaCodes.area.ilike(f"%{search}%"),
+                AreaCodes.area_code.cast(String).like(f"{search}%"),
+                AreaCodes.area_code_m49.cast(String).like(f"{search}%"),
+            )
+        )
+    
+    
+    # Get total count
+    count_query = select(func.count()).select_from(query.subquery())
+    total_count = db.execute(count_query).scalar() or 0
+    
+    # Apply ordering and pagination
+    query = query.order_by(AreaCodes.area_code).limit(limit).offset(offset)
     results = db.execute(query).all()
-    
-    return {
-        "dataset": "aquastat",
-        "total_areas": len(results),
-        "areas": [
+
+    items=[
+        {
+            "area_code": r.area_code,
+            "area": r.area,
+            "area_code_m49": r.area_code_m49,
+        }
+        for r in results
+    ]
+
+    if include_distribution:
+        items=[
             {
                 "area_code": r.area_code,
                 "area": r.area,
                 "area_code_m49": r.area_code_m49,
+                "record_count": r.record_count,
             }
             for r in results
         ]
-    }
+    
+    return ResponseFormatter.format_metadata_response(
+        dataset="aquastat",
+        metadata_type="areas",
+        total=total_count,
+        items=items
+    )
 
-
-
-
-
-@router.get("/elements")
+@router.get("/elements", summary="Get Elements in aquastat")
 @cache_result(prefix="aquastat:elements", ttl=604800)
-def get_available_elements(db: Session = Depends(get_db)):
-    """Get all elements (measures/indicators) in this dataset"""
+async def get_available_elements(
+    db: Session = Depends(get_db),
+    search: Optional[str] = Query(None, description="Search element by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Set True to include distribution statistics"),
+):
+    """Get all elements (measures/indicators) available in this dataset."""
     query = (
         select(
-            Elements.element_code,  
-            Elements.element
+            Elements.element_code,
+            Elements.element,
         )
+        .select_from(Elements)
         .where(Elements.source_dataset == 'aquastat')
-        .order_by(Elements.element_code)
+        .group_by(
+            Elements.element_code,
+            Elements.element,
+        )
     )
+
+    if include_distribution:
+        query = (
+            select(
+                Elements.element_code,
+                Elements.element,
+                func.count(Aquastat.id).label('record_count')
+            )
+            .select_from(Elements)
+            .join(Aquastat, Elements.id == Aquastat.element_id)
+            .where(Elements.source_dataset == 'aquastat')
+            .group_by(
+                Elements.element_code,
+                Elements.element,
+            )
+        )
+    # Apply filters
+    if search:
+        query = query.where(
+            or_(
+                Elements.element.ilike(f"%{search}%"),
+                Elements.element_code.cast(String).like(f"{search}%")
+            )
+        )
+   
     
+    # Execute
+    query = query.order_by(Elements.element_code)
     results = db.execute(query).all()
-    
-    return {
-        "dataset": "aquastat",
-        "total_elements": len(results),
-        "elements": [
+    items = [
+        {
+            "element_code": r.element_code,
+            "element": r.element,
+        }
+        for r in results
+    ]
+
+    if include_distribution:
+        # If distribution is requested, we need to count records for each element
+        items = [
             {
                 "element_code": r.element_code,
                 "element": r.element,
+                "record_count": r.record_count,
             }
             for r in results
         ]
-    }
+        
+    return ResponseFormatter.format_metadata_response(
+        dataset="aquastat",
+        metadata_type="elements",
+        total=len(results),
+        items=items
+    )
 
-
-
-
-
-@router.get("/flags")
+@router.get("/flags", summary="Get Flags in aquastat")
 @cache_result(prefix="aquastat:flags", ttl=604800)
-def get_data_quality_summary(db: Session = Depends(get_db)):
-    """Get data quality flag distribution for this dataset"""
+async def get_available_flags(
+    db: Session = Depends(get_db),
+    search: Optional[str] = Query(None, description="Search description by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Include distribution statistics"),
+):
+    """Get data quality flag information and optionally their distribution in the dataset."""
+    # Get all flags used in this dataset
     query = (
         select(
+            Flags.id,
             Flags.flag,
             Flags.description,
             func.count(Aquastat.id).label('record_count')
         )
         .join(Aquastat, Flags.id == Aquastat.flag_id)
-        .group_by(Flags.flag, Flags.description)
+        .group_by(Flags.id, Flags.flag, Flags.description)
         .order_by(func.count(Aquastat.id).desc())
+    )
+
+    # Apply search filter
+    if search:
+        query = query.where(
+            or_(
+                Flags.description.ilike(f"%{search}%"),
+                Flags.flag.cast(String) == search,
+            )
+        )
+    
+    flags = db.execute(query).all()
+    
+    flag_info = []
+    for flag in flags:
+        info = {
+            "flag_id": flag.id,
+            "flag": flag.flag,
+            "description": flag.description,
+        }
+        
+        if include_distribution:
+            # Count records with this flag
+            count = db.execute(
+                select(func.count())
+                .select_from(Aquastat)
+                .where(Aquastat.flag_id == flag.id)
+            ).scalar() or 0
+            
+            info["record_count"] = count
+        
+        flag_info.append(info)
+    
+    response = {
+        "dataset": "aquastat",
+        "total_flags": len(flag_info),
+        "flags": flag_info,
+    }
+    
+    if include_distribution:
+        # Get total records
+        total_records = db.execute(
+            select(func.count()).select_from(Aquastat)
+        ).scalar() or 0
+        
+        response["total_records"] = total_records
+        response["flag_distribution"] = {
+            flag["flag"]: {
+                "count": flag["record_count"],
+                "percentage": round((flag["record_count"] / total_records) * 100, 2) if total_records > 0 else 0
+            }
+            for flag in flag_info
+        }
+    
+    return response
+
+@router.get("/units", summary="Get units of measurement in aquastat")
+@cache_result(prefix="aquastat:units", ttl=604800)
+async def get_available_units(db: Session = Depends(get_db)):
+    """Get all units of measurement used in this dataset."""
+    query = (
+        select(
+            Aquastat.unit,
+            func.count(Aquastat.id).label('record_count')
+        )
+        .select_from(Aquastat)
+        .group_by(Aquastat.unit)
+        .order_by(Aquastat.unit)
     )
     
     results = db.execute(query).all()
     
-    return {
-        "dataset": "aquastat",
-        "total_records": sum(r.record_count for r in results),
-        "flag_distribution": [
+    return ResponseFormatter.format_metadata_response(
+        dataset="aquastat",
+        metadata_type="units",
+        total=len(results),
+        items=[
             {
-                "flag": r.flag,
-                "description": r.description,
+                "unit": r.unit,
                 "record_count": r.record_count,
-                "percentage": round(r.record_count / sum(r2.record_count for r2 in results) * 100, 2)
             }
             for r in results
         ]
-    }
-
-
-@router.get("/years")
-@cache_result(prefix="aquastat:years", ttl=604800)
-def get_temporal_coverage(db: Session = Depends(get_db)):
-    """Get temporal coverage information for this dataset"""
-    # Get year range and counts
-    query = (
-        select(
-            Aquastat.year,
-            func.count(Aquastat.id).label('record_count')
-        )
-        .group_by(Aquastat.year)
-        .order_by(Aquastat.year)
     )
-    
-    results = db.execute(query).all()
-    years_data = [{"year": r.year, "record_count": r.record_count} for r in results]
-    
-    if not years_data:
-        return {"dataset": "aquastat", "message": "No temporal data available"}
-    
-    return {
+
+@router.get("/years", summary="Get available years in aquastat")
+@cache_result(prefix="aquastat:years", ttl=604800)
+async def get_available_years(
+    db: Session = Depends(get_db),
+    include_counts: bool = Query(False, description="Include record counts per year"),
+):
+    """Get all years with data in this dataset."""
+    if include_counts:
+        query = (
+            select(
+                Aquastat.year,
+                Aquastat.year_code,
+                func.count(Aquastat.id).label('record_count')
+            )
+            .group_by(Aquastat.year, Aquastat.year_code)
+            .order_by(Aquastat.year_code)
+        )
+        results = db.execute(query).all()
+        
+        return {
+            "dataset": "aquastat",
+            "total_years": len(results),
+            "year_range": {
+                "start": results[0].year if results else None,
+                "end": results[-1].year if results else None,
+            },
+            "years": [
+                {
+                    "year": r.year,
+                    "year_code": r.year_code,
+                    "record_count": r.record_count
+                }
+                for r in results
+            ]
+        }
+    else:
+        query = (
+            select(Aquastat.year)
+            .distinct()
+            .order_by(Aquastat.year)
+        )
+        results = db.execute(query).all()
+        years = [r.year for r in results]
+        
+        return {
+            "dataset": "aquastat",
+            "total_years": len(years),
+            "year_range": {
+                "start": years[0] if years else None,
+                "end": years[-1] if years else None,
+            },
+            "years": years
+        }
+
+# -----------------------------------------------
+# ========== Dataset Overview Endpoint ==========
+# -----------------------------------------------
+@router.get("/overview", summary="Get complete overview of aquastat dataset")
+@cache_result(prefix="aquastat:overview", ttl=3600)
+async def get_dataset_overview(db: Session = Depends(get_db)):
+    """Get a complete overview of the dataset including all available dimensions and statistics."""
+    overview = {
         "dataset": "aquastat",
-        "earliest_year": min(r["year"] for r in years_data),
-        "latest_year": max(r["year"] for r in years_data),
-        "total_years": len(years_data),
-        "total_records": sum(r["record_count"] for r in years_data),
-        "years": years_data
+        "description": "",
+        "last_updated": datetime.utcnow().isoformat(),
+        "dimensions": {},
+        "statistics": {}
+    }
+    
+    # Total records
+    total_records = db.execute(
+        select(func.count()).select_from(Aquastat)
+    ).scalar() or 0
+    overview["statistics"]["total_records"] = total_records
+    
+
+    area_code_ids = db.execute(
+        select(func.count(func.distinct(Aquastat.area_code_id)))
+        .select_from(Aquastat)
+    ).scalar() or 0
+
+    overview["dimensions"]["area_codes"] = {
+        "count": area_code_ids,
+        "endpoint": f"/aquastat/area_codes"
     }
 
-@router.get("/summary")
-@cache_result(prefix="aquastat:summary", ttl=604800)
-def get_dataset_summary(db: Session = Depends(get_db)):
-    """Get comprehensive summary of this dataset"""
-    total_records = db.query(func.count(Aquastat.id)).scalar()
-    
-    summary = {
-        "dataset": "aquastat",
-        "total_records": total_records,
-        "foreign_keys": [
-            "area_codes",
-            "elements",
-            "flags",
-        ]
+    element_code_ids = db.execute(
+        select(func.count(func.distinct(Aquastat.element_code_id)))
+        .select_from(Aquastat)
+    ).scalar() or 0
+
+    overview["dimensions"]["elements"] = {
+        "count": element_code_ids,
+        "endpoint": f"/aquastat/elements"
+    }
+
+    flag_ids = db.execute(
+        select(func.count(func.distinct(Aquastat.flag_id)))
+        .select_from(Aquastat)
+    ).scalar() or 0
+
+    overview["dimensions"]["flags"] = {
+        "count": flag_ids,
+        "endpoint": f"/aquastat/flags"
     }
     
-    summary["unique_areas"] = db.query(func.count(func.distinct(Aquastat.area_code_id))).scalar()
-    summary["unique_elements"] = db.query(func.count(func.distinct(Aquastat.element_code_id))).scalar()
-    summary["unique_flags"] = db.query(func.count(func.distinct(Aquastat.flag_id))).scalar()
+    # Year range
+    year_stats = db.execute(
+        select(
+            func.min(Aquastat.year).label('min_year'),
+            func.max(Aquastat.year).label('max_year'),
+            func.count(func.distinct(Aquastat.year)).label('year_count')
+        )
+        .select_from(Aquastat)
+    ).first()
     
-    return summary
+    overview["dimensions"]["years"] = {
+        "range": {
+            "start": year_stats.min_year,
+            "end": year_stats.max_year
+        },
+        "count": year_stats.year_count,
+        "endpoint": f"/aquastat/years"
+    }
+    
+    # Value statistics
+    value_stats = db.execute(
+        select(
+            func.min(Aquastat.value).label('min_value'),
+            func.max(Aquastat.value).label('max_value'),
+            func.avg(Aquastat.value).label('avg_value')
+        )
+        .select_from(Aquastat)
+        .where(and_(Aquastat.value > 0, Aquastat.value.is_not(None)))
+    ).first()
+    
+    overview["statistics"]["values"] = {
+        "min": float(value_stats.min_value) if value_stats.min_value else None,
+        "max": float(value_stats.max_value) if value_stats.max_value else None,
+        "average": round(float(value_stats.avg_value), 2) if value_stats.avg_value else None,
+    }
+    
+    # Available endpoints
+    overview["endpoints"] = {
+        "data": f"/aquastat",
+        "aggregate": f"/aquastat/aggregate",
+        "summary": f"/aquastat/summary",
+        "overview": f"/aquastat/overview",
+        "area_codes": f"/aquastat/area_codes",
+        "elements": f"/aquastat/elements",
+        "flags": f"/aquastat/flags",
+    }
+    
+    return overview
+
+ 
+@router.get("/health", tags=["health"])
+async def health_check(db: Session = Depends(get_db)):
+    """Check if the aquastat endpoint is healthy."""
+    try:
+        # Try to execute a simple query
+        result = db.execute(select(func.count()).select_from(Aquastat)).scalar()
+        return {
+            "status": "healthy",
+            "dataset": "aquastat",
+            "records": result
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Health check failed: {str(e)}")

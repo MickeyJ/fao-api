@@ -19,16 +19,16 @@ class ValueSharesIndustryPrimaryFactors(Base):
     id = Column(Integer, primary_key=True)
     # Foreign key to area_codes
     area_code_id = Column(Integer, ForeignKey("area_codes.id"), index=True)
+    # Foreign key to food_values
+    food_value_code_id = Column(Integer, ForeignKey("food_values.id"), index=True)
+    # Foreign key to industries
+    industry_code_id = Column(Integer, ForeignKey("industries.id"), index=True)
+    # Foreign key to factors
+    factor_code_id = Column(Integer, ForeignKey("factors.id"), index=True)
     # Foreign key to elements
     element_code_id = Column(Integer, ForeignKey("elements.id"), index=True)
     # Foreign key to flags
     flag_id = Column(Integer, ForeignKey("flags.id"), index=True)
-    food_value_code = Column(String, nullable=False, index=False)
-    food_value = Column(String, nullable=False, index=False)
-    industry_code = Column(String, nullable=False, index=False)
-    industry = Column(String, nullable=False, index=False)
-    factor_code = Column(String, nullable=False, index=False)
-    factor = Column(String, nullable=False, index=False)
     year_code = Column(String(8), nullable=False, index=False)
     year = Column(SmallInteger, nullable=False, index=True)
     unit = Column(String(50), nullable=False, index=False)
@@ -37,10 +37,10 @@ class ValueSharesIndustryPrimaryFactors(Base):
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
     
-    #     #         #         #             #         #             #         #             #         #         #             #         #         #         #         #             #             
+    #     #         #         #             #         #             #         #             #         #             #         #             #         #             #         #         #             #         #         #         #         #             #             
     #         # __table_args__ = (
     #     Index("ix_19988524_uniq_uniq", 
-    #         'area_code_id', 'element_code_id', 'flag_id', 'year', 'unit',
+    #         'area_code_id', 'food_value_code_id', 'industry_code_id', 'factor_code_id', 'element_code_id', 'flag_id', 'year', 'unit',
     #         unique=True),
     # )
     #         

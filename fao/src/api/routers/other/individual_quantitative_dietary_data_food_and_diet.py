@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, Response
+# templates/api_router.py.jinja2 (refactored main)
+from fastapi import APIRouter, Depends, Query, HTTPException, Response, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, or_, text, String, Integer, Float, SmallInteger
-from typing import Optional, Union, Dict, List
+from sqlalchemy import select, func, or_, and_, String
+from typing import Optional, List, Union
+from datetime import datetime
+
+from fao.logger import logger
 from fao.src.core.cache import cache_result
 from fao.src.core import settings
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.individual_quantitative_dietary_data_food_and_diet.individual_quantitative_dietary_data_food_and_diet_model import IndividualQuantitativeDietaryDataFoodAndDiet
-import math
-from datetime import datetime
-# Import core/reference tables for joins
+
+
 from fao.src.db.pipelines.surveys.surveys_model import Surveys
 from fao.src.db.pipelines.geographic_levels.geographic_levels_model import GeographicLevels
 from fao.src.db.pipelines.population_age_groups.population_age_groups_model import PopulationAgeGroups
@@ -18,786 +21,715 @@ from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.sexs.sexs_model import Sexs
 from fao.src.db.pipelines.flags.flags_model import Flags
 
+# Import utilities
+
+from fao.src.api.utils.router_handler import RouterHandler
+from .individual_quantitative_dietary_data_food_and_diet_config import IndividualQuantitativeDietaryDataFoodAndDietConfig
+from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
+from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
+
+
+
 router = APIRouter(
     prefix="/individual_quantitative_dietary_data_food_and_diet",
     responses={404: {"description": "Not found"}},
 )
 
-def create_pagination_links(base_url: str, total_count: int, limit: int, offset: int, params: dict) -> dict:
-    """Generate pagination links for response headers"""
-    links = {}
-    total_pages = math.ceil(total_count / limit) if limit > 0 else 1
-    current_page = (offset // limit) + 1 if limit > 0 else 1
-    
-    # Remove offset from params to rebuild
-    query_params = {k: v for k, v in params.items() if k not in ['offset', 'limit'] and v is not None}
-    
-    # Helper to build URL
-    def build_url(new_offset: int) -> str:
-        params_str = "&".join([f"{k}={v}" for k, v in query_params.items()])
-        return f"{base_url}?limit={limit}&offset={new_offset}" + (f"&{params_str}" if params_str else "")
-    
-    # First page
-    links['first'] = build_url(0)
-    
-    # Last page
-    last_offset = (total_pages - 1) * limit
-    links['last'] = build_url(last_offset)
-    
-    # Next page (if not on last page)
-    if current_page < total_pages:
-        links['next'] = build_url(offset + limit)
-    
-    # Previous page (if not on first page)
-    if current_page > 1:
-        links['prev'] = build_url(max(0, offset - limit))
-    
-    return links
 
-@router.get("/")
-@cache_result(prefix="individual_quantitative_dietary_data_food_and_diet", ttl=86400, exclude_params=["response", "db"])
-def get_individual_quantitative_dietary_data_food_and_diet(
+config = IndividualQuantitativeDietaryDataFoodAndDietConfig()
+
+@router.get("/", summary="Get individual quantitative dietary data food and diet data")
+async def get_individual_quantitative_dietary_data_food_and_diet_data(
+    request: Request,
     response: Response,
-    limit: int = Query(100, le=1000, ge=1, description="Maximum records to return"),
+    db: Session = Depends(get_db),
+    # Standard parameters
+    limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
-    survey_code: Optional[str] = Query(None, description="Filter by surveys code"),
-    survey: Optional[str] = Query(None, description="Filter by surveys description"),
-    geographic_level_code: Optional[str] = Query(None, description="Filter by geographic_levels code"),
-    geographic_level: Optional[str] = Query(None, description="Filter by geographic_levels description"),
-    population_age_group_code: Optional[str] = Query(None, description="Filter by population_age_groups code"),
-    population_age_group: Optional[str] = Query(None, description="Filter by population_age_groups description"),
-    food_group_code: Optional[str] = Query(None, description="Filter by food_groups code"),
-    food_group: Optional[str] = Query(None, description="Filter by food_groups description"),
-    indicator_code: Optional[str] = Query(None, description="Filter by indicators code"),
-    indicator: Optional[str] = Query(None, description="Filter by indicators description"),
-    element_code: Optional[str] = Query(None, description="Filter by elements code"),
-    element: Optional[str] = Query(None, description="Filter by elements description"),
-    sex_code: Optional[str] = Query(None, description="Filter by sexs code"),
-    sex: Optional[str] = Query(None, description="Filter by sexs description"),
-    flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
-    # Dynamic column filters based on model
+    # Filter parameters
+    survey_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by survey_code code (comma-separated for multiple)"),
+    survey: Optional[str] = Query(None, description="Filter by survey description (partial match)"),
+    geographic_level_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by geographic_level_code code (comma-separated for multiple)"),
+    geographic_level: Optional[str] = Query(None, description="Filter by geographic_level description (partial match)"),
+    population_age_group_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by population_age_group_code code (comma-separated for multiple)"),
+    population_age_group: Optional[str] = Query(None, description="Filter by population_age_group description (partial match)"),
+    food_group_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by food_group_code code (comma-separated for multiple)"),
+    food_group: Optional[str] = Query(None, description="Filter by food_group description (partial match)"),
+    indicator_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by indicator_code code (comma-separated for multiple)"),
+    indicator: Optional[str] = Query(None, description="Filter by indicator description (partial match)"),
+    element_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by element_code code (comma-separated for multiple)"),
+    element: Optional[str] = Query(None, description="Filter by element description (partial match)"),
+    sex_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by sex_code code (comma-separated for multiple)"),
+    sex: Optional[str] = Query(None, description="Filter by sex description (partial match)"),
+    flag: Optional[Union[str, List[str]]] = Query(None, description="Filter by flag code (comma-separated for multiple)"),
+    description: Optional[str] = Query(None, description="Filter by description description (partial match)"),
     unit: Optional[str] = Query(None, description="Filter by unit (partial match)"),
-    unit_exact: Optional[str] = Query(None, description="Filter by exact unit"),
     value: Optional[Union[float, int]] = Query(None, description="Exact value"),
     value_min: Optional[Union[float, int]] = Query(None, description="Minimum value"),
     value_max: Optional[Union[float, int]] = Query(None, description="Maximum value"),
     note: Optional[str] = Query(None, description="Filter by note (partial match)"),
-    note_exact: Optional[str] = Query(None, description="Filter by exact note"),
-    include_all_reference_columns: bool = Query(False, description="Include all columns from reference tables"),
-    fields: Optional[str] = Query(None, description="Comma-separated list of fields to return"),
-    sort: Optional[str] = Query(None, description="Sort fields (use - prefix for descending, e.g., 'year,-value')"),
-    db: Session = Depends(get_db)
-) -> Dict:
-    """
-    Get individual quantitative dietary data food and diet data with filters and pagination.
-    
-    ## Pagination
-    - Use `limit` and `offset` for page-based navigation
-    - Response includes pagination metadata and total count
-    - Link headers provided for easy navigation
-    
+    # Option parameters  
+    fields: Optional[List[str]] = Query(None, description="Comma-separated list of fields to return"),
+    sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
+):
+    """Get individual quantitative dietary data food and diet data with advanced filtering and pagination.
+
     ## Filtering
-    - survey_code: Filter by surveys code
-    - survey: Filter by surveys description (partial match)
-    - geographic_level_code: Filter by geographic_levels code
-    - geographic_level: Filter by geographic_levels description (partial match)
-    - population_age_group_code: Filter by population_age_groups code
-    - population_age_group: Filter by population_age_groups description (partial match)
-    - food_group_code: Filter by food_groups code
-    - food_group: Filter by food_groups description (partial match)
-    - indicator_code: Filter by indicators code
-    - indicator: Filter by indicators description (partial match)
-    - element_code: Filter by elements code
-    - element: Filter by elements description (partial match)
-    - sex_code: Filter by sexs code
-    - sex: Filter by sexs description (partial match)
-    - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
+    - Use comma-separated values for multiple selections (e.g., element_code=102,489)
+    - Use _min/_max suffixes for range queries on numeric fields
+    - Use _exact suffix for exact string matches
+
+    ## Pagination
+    - Use limit and offset parameters
+    - Check pagination metadata in response headers
+
+    ## Sorting
+    - Use format: field:direction (e.g., 'year:desc')
+    - Multiple sorts: 'year:desc,value:asc'
+    """
+
+    router_handler = RouterHandler(
+        db=db, 
+        model=IndividualQuantitativeDietaryDataFoodAndDiet, 
+        model_name="IndividualQuantitativeDietaryDataFoodAndDiet",
+        table_name="individual_quantitative_dietary_data_food_and_diet",
+        request=request, 
+        response=response, 
+        config=config
+    )
+
+    survey_code = router_handler.clean_param(survey_code, "multi")
+    survey = router_handler.clean_param(survey, "like")
+    geographic_level_code = router_handler.clean_param(geographic_level_code, "multi")
+    geographic_level = router_handler.clean_param(geographic_level, "like")
+    population_age_group_code = router_handler.clean_param(population_age_group_code, "multi")
+    population_age_group = router_handler.clean_param(population_age_group, "like")
+    food_group_code = router_handler.clean_param(food_group_code, "multi")
+    food_group = router_handler.clean_param(food_group, "like")
+    indicator_code = router_handler.clean_param(indicator_code, "multi")
+    indicator = router_handler.clean_param(indicator, "like")
+    element_code = router_handler.clean_param(element_code, "multi")
+    element = router_handler.clean_param(element, "like")
+    sex_code = router_handler.clean_param(sex_code, "multi")
+    sex = router_handler.clean_param(sex, "like")
+    flag = router_handler.clean_param(flag, "multi")
+    description = router_handler.clean_param(description, "like")
+    unit = router_handler.clean_param(unit, "like")
+    value = router_handler.clean_param(value, "exact")
+    value_min = router_handler.clean_param(value_min, "range_min")
+    value_max = router_handler.clean_param(value_max, "range_max")
+    note = router_handler.clean_param(note, "like")
+
+    param_configs = {
+        "limit": limit,
+        "offset": offset,
+        "survey_code": survey_code,
+        "survey": survey,
+        "geographic_level_code": geographic_level_code,
+        "geographic_level": geographic_level,
+        "population_age_group_code": population_age_group_code,
+        "population_age_group": population_age_group,
+        "food_group_code": food_group_code,
+        "food_group": food_group,
+        "indicator_code": indicator_code,
+        "indicator": indicator,
+        "element_code": element_code,
+        "element": element,
+        "sex_code": sex_code,
+        "sex": sex,
+        "flag": flag,
+        "description": description,
+        "unit": unit,
+        "value": value,
+        "value_min": value_min,
+        "value_max": value_max,
+        "note": note,
+        "fields": fields,
+        "sort": sort,
+    }
+    # Validate field and sort parameter
+    requested_fields, sort_columns = router_handler.validate_fields_and_sort_parameters(fields, sort)
+
+    router_handler.validate_filter_parameters(param_configs, db)
+
+    filter_count = router_handler.apply_filters_from_config(param_configs)
+    total_count = router_handler.query_builder.get_count(db)
+
+    if sort_columns:
+        router_handler.query_builder.add_ordering(sort_columns)
+    else:
+        router_handler.query_builder.add_ordering(router_handler.get_default_sort())
+
+    # Apply pagination and execute
+    results = router_handler.query_builder.paginate(limit, offset).execute(db)
+
+    response_data = router_handler.filter_response_data(results, requested_fields)
+
+    return router_handler.build_response(
+        request=request,
+        response=response,
+        data=response_data,
+        total_count=total_count,
+        filter_count=filter_count,
+        limit=limit,
+        offset=offset,
+        survey_code=survey_code,
+        survey=survey,
+        geographic_level_code=geographic_level_code,
+        geographic_level=geographic_level,
+        population_age_group_code=population_age_group_code,
+        population_age_group=population_age_group,
+        food_group_code=food_group_code,
+        food_group=food_group,
+        indicator_code=indicator_code,
+        indicator=indicator,
+        element_code=element_code,
+        element=element,
+        sex_code=sex_code,
+        sex=sex,
+        flag=flag,
+        description=description,
+        unit=unit,
+        value=value,
+        value_min=value_min,
+        value_max=value_max,
+        note=note,
+        fields=fields,
+        sort=sort,
+    )
+
+# templates/partials/router_aggregation_endpoints.jinja2
+@router.get("/aggregate", summary="Get aggregated individual quantitative dietary data food and diet data")
+async def get_individual_quantitative_dietary_data_food_and_diet_aggregated(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    # Grouping
+    group_by: List[str] = Query(..., description="Comma-separated list of fields to group by"),
+    # Aggregations
+    aggregations: List[str] = Query(..., description="Comma-separated aggregations (e.g., 'value:sum,value:avg:avg_value')"),
+    # Standard parameters
+    limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
+    offset: int = Query(0, ge=0, description="Number of records to skip"),
+    # Filter parameters
+    survey_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by survey_code code (comma-separated for multiple)"),
+    survey: Optional[str] = Query(None, description="Filter by survey description (partial match)"),
+    geographic_level_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by geographic_level_code code (comma-separated for multiple)"),
+    geographic_level: Optional[str] = Query(None, description="Filter by geographic_level description (partial match)"),
+    population_age_group_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by population_age_group_code code (comma-separated for multiple)"),
+    population_age_group: Optional[str] = Query(None, description="Filter by population_age_group description (partial match)"),
+    food_group_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by food_group_code code (comma-separated for multiple)"),
+    food_group: Optional[str] = Query(None, description="Filter by food_group description (partial match)"),
+    indicator_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by indicator_code code (comma-separated for multiple)"),
+    indicator: Optional[str] = Query(None, description="Filter by indicator description (partial match)"),
+    element_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by element_code code (comma-separated for multiple)"),
+    element: Optional[str] = Query(None, description="Filter by element description (partial match)"),
+    sex_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by sex_code code (comma-separated for multiple)"),
+    sex: Optional[str] = Query(None, description="Filter by sex description (partial match)"),
+    flag: Optional[Union[str, List[str]]] = Query(None, description="Filter by flag code (comma-separated for multiple)"),
+    description: Optional[str] = Query(None, description="Filter by description description (partial match)"),
+    unit: Optional[str] = Query(None, description="Filter by unit (partial match)"),
+    value: Optional[Union[float, int]] = Query(None, description="Exact value"),
+    value_min: Optional[Union[float, int]] = Query(None, description="Minimum value"),
+    value_max: Optional[Union[float, int]] = Query(None, description="Maximum value"),
+    note: Optional[str] = Query(None, description="Filter by note (partial match)"),
+    # Option parameters  
+    sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
+):
+    """Get aggregated data with grouping and multiple aggregation functions.
     
-    Dataset-specific filters:
-    - unit: Partial match (case-insensitive)
-    - unit_exact: Exact match
-    - value: Exact value
-    - value_min/value_max: Value range
-    - note: Partial match (case-insensitive)
-    - note_exact: Exact match
+    ## Examples
+    - Sum by year: `group_by=year&aggregations=value:sum`
+    - Average by area and year: `group_by=area_code,year&aggregations=value:avg`
+    - Multiple aggregations: `aggregations=value:sum:total_value,value:avg:average_value`
     
-    ## Response Format
-    - Returns paginated data with metadata
-    - Total count included for client-side pagination
-    - Links to first, last, next, and previous pages
+    ## Aggregation Functions
+    - sum, avg, min, max, count, count_distinct
     """
     
-    # Build column list for select
-    columns = []
-    column_map = {}  # Map of field name to column object
+    # ------------------------------------------------------------------------
+    # Needs same validation: 
+    # general values, sort and filter param values, 
+    # fk specific validation (checking against actual reference table data)
+    # ------------------------------------------------------------------------
+    router_handler = RouterHandler(
+        db=db, 
+        model=IndividualQuantitativeDietaryDataFoodAndDiet, 
+        model_name="IndividualQuantitativeDietaryDataFoodAndDiet",
+        table_name="individual_quantitative_dietary_data_food_and_diet",
+        request=request, 
+        response=response, 
+        config=config
+    )
+
+     # Setup aggregation mode
+    router_handler.setup_aggregation(group_by, aggregations)
+
+    # Clean parameters
+    survey_code = router_handler.clean_param(survey_code, "multi")
+    survey = router_handler.clean_param(survey, "like")
+    geographic_level_code = router_handler.clean_param(geographic_level_code, "multi")
+    geographic_level = router_handler.clean_param(geographic_level, "like")
+    population_age_group_code = router_handler.clean_param(population_age_group_code, "multi")
+    population_age_group = router_handler.clean_param(population_age_group, "like")
+    food_group_code = router_handler.clean_param(food_group_code, "multi")
+    food_group = router_handler.clean_param(food_group, "like")
+    indicator_code = router_handler.clean_param(indicator_code, "multi")
+    indicator = router_handler.clean_param(indicator, "like")
+    element_code = router_handler.clean_param(element_code, "multi")
+    element = router_handler.clean_param(element, "like")
+    sex_code = router_handler.clean_param(sex_code, "multi")
+    sex = router_handler.clean_param(sex, "like")
+    flag = router_handler.clean_param(flag, "multi")
+    description = router_handler.clean_param(description, "like")
+    unit = router_handler.clean_param(unit, "like")
+    value = router_handler.clean_param(value, "exact")
+    value_min = router_handler.clean_param(value_min, "range_min")
+    value_max = router_handler.clean_param(value_max, "range_max")
+    note = router_handler.clean_param(note, "like")
+
+    param_configs = {
+        "limit": limit,
+        "offset": offset,
+        "survey_code": survey_code,
+        "survey": survey,
+        "geographic_level_code": geographic_level_code,
+        "geographic_level": geographic_level,
+        "population_age_group_code": population_age_group_code,
+        "population_age_group": population_age_group,
+        "food_group_code": food_group_code,
+        "food_group": food_group,
+        "indicator_code": indicator_code,
+        "indicator": indicator,
+        "element_code": element_code,
+        "element": element,
+        "sex_code": sex_code,
+        "sex": sex,
+        "flag": flag,
+        "description": description,
+        "unit": unit,
+        "value": value,
+        "value_min": value_min,
+        "value_max": value_max,
+        "note": note,
+        "sort": sort,
+    }
+
+    # Validate fields and sort for aggregation
+    if router_handler.is_aggregation:
+        # For aggregations, available fields are group_by fields + aggregation aliases
+        router_handler.all_data_fields = set(router_handler.get_aggregation_response_fields())
     
-    # Parse requested fields if specified (preserving order)
-    requested_fields = [field.strip() for field in fields.split(',') if field.strip()] if fields else None
-    requested_fields_set = set(requested_fields) if requested_fields else None
+    requested_fields, sort_columns = router_handler.validate_fields_and_sort_parameters(fields=[], sort=sort)
+
+    # Validate filter parameters
+    router_handler.validate_filter_parameters(param_configs, db)
+
+    # Apply filters
+    filter_count = router_handler.apply_filters_from_config(param_configs)
     
-    # First, build a map of all available columns
-    # Main table columns
-    for col in IndividualQuantitativeDietaryDataFoodAndDiet.__table__.columns:
-        if col.name not in ['created_at', 'updated_at']:
-            column_map[col.name] = col
+    # Add grouping to query
+    group_columns = []
+    for field in router_handler.group_fields:
+        if field in router_handler.query_builder._field_to_column:
+            group_columns.append(router_handler.query_builder._field_to_column[field])
+        else:
+            raise HTTPException(400, f"Cannot group by '{field}' - field not available")
+
+    router_handler.query_builder.add_grouping(group_columns)
     
-    # Reference table columns
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Surveys.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "surveys_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "surveys_survey_code"
-        column_map[col_alias] = Surveys.survey_code.label(col_alias)
-        col_alias = "surveys_survey"
-        column_map[col_alias] = Surveys.survey.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in GeographicLevels.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "geographic_levels_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "geographic_levels_geographic_level_code"
-        column_map[col_alias] = GeographicLevels.geographic_level_code.label(col_alias)
-        col_alias = "geographic_levels_geographic_level"
-        column_map[col_alias] = GeographicLevels.geographic_level.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in PopulationAgeGroups.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "population_age_groups_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "population_age_groups_population_age_group_code"
-        column_map[col_alias] = PopulationAgeGroups.population_age_group_code.label(col_alias)
-        col_alias = "population_age_groups_population_age_group"
-        column_map[col_alias] = PopulationAgeGroups.population_age_group.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in FoodGroups.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "food_groups_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "food_groups_food_group_code"
-        column_map[col_alias] = FoodGroups.food_group_code.label(col_alias)
-        col_alias = "food_groups_food_group"
-        column_map[col_alias] = FoodGroups.food_group.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Indicators.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "indicators_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "indicators_indicator_code"
-        column_map[col_alias] = Indicators.indicator_code.label(col_alias)
-        col_alias = "indicators_indicator"
-        column_map[col_alias] = Indicators.indicator.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Elements.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "elements_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "elements_element_code"
-        column_map[col_alias] = Elements.element_code.label(col_alias)
-        col_alias = "elements_element"
-        column_map[col_alias] = Elements.element.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Sexs.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "sexs_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "sexs_sex_code"
-        column_map[col_alias] = Sexs.sex_code.label(col_alias)
-        col_alias = "sexs_sex"
-        column_map[col_alias] = Sexs.sex.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Flags.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "flags_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "flags_flag"
-        column_map[col_alias] = Flags.flag.label(col_alias)
-        col_alias = "flags_description"
-        column_map[col_alias] = Flags.description.label(col_alias)
-    
-    # Now build columns list in the requested order
-    if requested_fields:
-        # Add columns in the order specified by the user
-        for field_name in requested_fields:
-            if field_name in column_map:
-                columns.append(column_map[field_name])
-            # If id is requested, include it even though we normally exclude it
-            elif field_name == 'id' and hasattr(IndividualQuantitativeDietaryDataFoodAndDiet, 'id'):
-                columns.append(IndividualQuantitativeDietaryDataFoodAndDiet.id)
-    else:
-        # No specific fields requested, use all available columns in default order
-        for col in IndividualQuantitativeDietaryDataFoodAndDiet.__table__.columns:
-            if col.name not in ['created_at', 'updated_at']:
-                columns.append(col)
+    # Add aggregations to query
+    for agg_config in router_handler.agg_configs:
+        if agg_config['field'] in router_handler.query_builder._field_to_column:
+            column = router_handler.query_builder._field_to_column[agg_config['field']]
+        else:
+            raise HTTPException(400, f"Cannot aggregate '{agg_config['field']}' - field not available")
         
-        # Add reference columns in default order
-        if include_all_reference_columns:
-            for col in Surveys.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("surveys_" + col.name))
-        else:
-            columns.append(Surveys.survey_code.label("surveys_survey_code"))
-            columns.append(Surveys.survey.label("surveys_survey"))
-        if include_all_reference_columns:
-            for col in GeographicLevels.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("geographic_levels_" + col.name))
-        else:
-            columns.append(GeographicLevels.geographic_level_code.label("geographic_levels_geographic_level_code"))
-            columns.append(GeographicLevels.geographic_level.label("geographic_levels_geographic_level"))
-        if include_all_reference_columns:
-            for col in PopulationAgeGroups.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("population_age_groups_" + col.name))
-        else:
-            columns.append(PopulationAgeGroups.population_age_group_code.label("population_age_groups_population_age_group_code"))
-            columns.append(PopulationAgeGroups.population_age_group.label("population_age_groups_population_age_group"))
-        if include_all_reference_columns:
-            for col in FoodGroups.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("food_groups_" + col.name))
-        else:
-            columns.append(FoodGroups.food_group_code.label("food_groups_food_group_code"))
-            columns.append(FoodGroups.food_group.label("food_groups_food_group"))
-        if include_all_reference_columns:
-            for col in Indicators.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("indicators_" + col.name))
-        else:
-            columns.append(Indicators.indicator_code.label("indicators_indicator_code"))
-            columns.append(Indicators.indicator.label("indicators_indicator"))
-        if include_all_reference_columns:
-            for col in Elements.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("elements_" + col.name))
-        else:
-            columns.append(Elements.element_code.label("elements_element_code"))
-            columns.append(Elements.element.label("elements_element"))
-        if include_all_reference_columns:
-            for col in Sexs.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("sexs_" + col.name))
-        else:
-            columns.append(Sexs.sex_code.label("sexs_sex_code"))
-            columns.append(Sexs.sex.label("sexs_sex"))
-        if include_all_reference_columns:
-            for col in Flags.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("flags_" + col.name))
-        else:
-            columns.append(Flags.flag.label("flags_flag"))
-            columns.append(Flags.description.label("flags_description"))
+        agg_type = AggregationType(agg_config['function'])
+        router_handler.query_builder.add_aggregation(column, agg_type, agg_config['alias'], agg_config['round_to'])
     
-    # Build base query
-    query = select(*columns).select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+    # Apply aggregations
+    router_handler.query_builder.apply_aggregations()
     
-    # Add joins
-    query = query.outerjoin(Surveys, IndividualQuantitativeDietaryDataFoodAndDiet.survey_code_id == Surveys.id)
-    query = query.outerjoin(GeographicLevels, IndividualQuantitativeDietaryDataFoodAndDiet.geographic_level_code_id == GeographicLevels.id)
-    query = query.outerjoin(PopulationAgeGroups, IndividualQuantitativeDietaryDataFoodAndDiet.population_age_group_code_id == PopulationAgeGroups.id)
-    query = query.outerjoin(FoodGroups, IndividualQuantitativeDietaryDataFoodAndDiet.food_group_code_id == FoodGroups.id)
-    query = query.outerjoin(Indicators, IndividualQuantitativeDietaryDataFoodAndDiet.indicator_code_id == Indicators.id)
-    query = query.outerjoin(Elements, IndividualQuantitativeDietaryDataFoodAndDiet.element_code_id == Elements.id)
-    query = query.outerjoin(Sexs, IndividualQuantitativeDietaryDataFoodAndDiet.sex_code_id == Sexs.id)
-    query = query.outerjoin(Flags, IndividualQuantitativeDietaryDataFoodAndDiet.flag_id == Flags.id)
-    
-    # Build filter conditions for both main query and count query
-    conditions = []
-    
-    # Apply foreign key filters
-    if survey_code:
-        conditions.append(Surveys.survey_code == survey_code)
-    if survey:
-        conditions.append(Surveys.survey.ilike("%" + survey + "%"))
-    if geographic_level_code:
-        conditions.append(GeographicLevels.geographic_level_code == geographic_level_code)
-    if geographic_level:
-        conditions.append(GeographicLevels.geographic_level.ilike("%" + geographic_level + "%"))
-    if population_age_group_code:
-        conditions.append(PopulationAgeGroups.population_age_group_code == population_age_group_code)
-    if population_age_group:
-        conditions.append(PopulationAgeGroups.population_age_group.ilike("%" + population_age_group + "%"))
-    if food_group_code:
-        conditions.append(FoodGroups.food_group_code == food_group_code)
-    if food_group:
-        conditions.append(FoodGroups.food_group.ilike("%" + food_group + "%"))
-    if indicator_code:
-        conditions.append(Indicators.indicator_code == indicator_code)
-    if indicator:
-        conditions.append(Indicators.indicator.ilike("%" + indicator + "%"))
-    if element_code:
-        conditions.append(Elements.element_code == element_code)
-    if element:
-        conditions.append(Elements.element.ilike("%" + element + "%"))
-    if sex_code:
-        conditions.append(Sexs.sex_code == sex_code)
-    if sex:
-        conditions.append(Sexs.sex.ilike("%" + sex + "%"))
-    if flag:
-        conditions.append(Flags.flag == flag)
-    if description:
-        conditions.append(Flags.description.ilike("%" + description + "%"))
-    
-    # Apply dataset-specific column filters
-    if unit is not None:
-        conditions.append(IndividualQuantitativeDietaryDataFoodAndDiet.unit.ilike("%" + unit + "%"))
-    if unit_exact is not None:
-        conditions.append(IndividualQuantitativeDietaryDataFoodAndDiet.unit == unit_exact)
-    if value is not None:
-        conditions.append(IndividualQuantitativeDietaryDataFoodAndDiet.value == value)
-    if value_min is not None:
-        conditions.append(IndividualQuantitativeDietaryDataFoodAndDiet.value >= value_min)
-    if value_max is not None:
-        conditions.append(IndividualQuantitativeDietaryDataFoodAndDiet.value <= value_max)
-    if note is not None:
-        conditions.append(IndividualQuantitativeDietaryDataFoodAndDiet.note.ilike("%" + note + "%"))
-    if note_exact is not None:
-        conditions.append(IndividualQuantitativeDietaryDataFoodAndDiet.note == note_exact)
-    
-    # Apply all conditions
-    if conditions:
-        query = query.where(*conditions)
-    
-    # Apply sorting if specified
-    if sort:
-        order_by_clauses = []
-        for sort_field in sort.split(','):
-            sort_field = sort_field.strip()
-            if sort_field:  # Skip empty strings
-                if sort_field.startswith('-'):
-                    # Descending order
-                    field_name = sort_field[1:].strip()
-                    if hasattr(IndividualQuantitativeDietaryDataFoodAndDiet, field_name):
-                        order_by_clauses.append(getattr(IndividualQuantitativeDietaryDataFoodAndDiet, field_name).desc())
-                else:
-                    # Ascending order
-                    if hasattr(IndividualQuantitativeDietaryDataFoodAndDiet, sort_field):
-                        order_by_clauses.append(getattr(IndividualQuantitativeDietaryDataFoodAndDiet, sort_field))
-        
-        if order_by_clauses:
-            query = query.order_by(*order_by_clauses)
+    # Get count
+    total_count = router_handler.query_builder.get_count(db)
+
+    # Apply sorting
+    if sort_columns:
+        router_handler.query_builder.add_ordering(sort_columns)
     else:
-        # Default ordering by ID for consistent pagination
-        query = query.order_by(IndividualQuantitativeDietaryDataFoodAndDiet.id)
-    
-    # Get total count with filters applied
-    count_query = select(func.count()).select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
-    
-    # Add joins to count query
-    count_query = count_query.outerjoin(Surveys, IndividualQuantitativeDietaryDataFoodAndDiet.survey_code_id == Surveys.id)
-    count_query = count_query.outerjoin(GeographicLevels, IndividualQuantitativeDietaryDataFoodAndDiet.geographic_level_code_id == GeographicLevels.id)
-    count_query = count_query.outerjoin(PopulationAgeGroups, IndividualQuantitativeDietaryDataFoodAndDiet.population_age_group_code_id == PopulationAgeGroups.id)
-    count_query = count_query.outerjoin(FoodGroups, IndividualQuantitativeDietaryDataFoodAndDiet.food_group_code_id == FoodGroups.id)
-    count_query = count_query.outerjoin(Indicators, IndividualQuantitativeDietaryDataFoodAndDiet.indicator_code_id == Indicators.id)
-    count_query = count_query.outerjoin(Elements, IndividualQuantitativeDietaryDataFoodAndDiet.element_code_id == Elements.id)
-    count_query = count_query.outerjoin(Sexs, IndividualQuantitativeDietaryDataFoodAndDiet.sex_code_id == Sexs.id)
-    count_query = count_query.outerjoin(Flags, IndividualQuantitativeDietaryDataFoodAndDiet.flag_id == Flags.id)
-    
-    # Apply same conditions to count query
-    if conditions:
-        count_query = count_query.where(*conditions)
-    
-    total_count = db.execute(count_query).scalar() or 0
-    
-    # Calculate pagination metadata
-    total_pages = math.ceil(total_count / limit) if limit > 0 else 1
-    current_page = (offset // limit) + 1 if limit > 0 else 1
-    
-    # Apply pagination
-    query = query.offset(offset).limit(limit)
-    
+        # Default sort for aggregations could be first group field
+        if router_handler.group_fields:
+            router_handler.query_builder.add_ordering([(router_handler.group_fields[0], "asc")])
+
     # Execute query
-    results = db.execute(query).mappings().all()
-    
-    # Convert results preserving field order
-    ordered_data = []
-    if requested_fields:
-        # Preserve the exact order from the fields parameter
-        for row in results:
-            ordered_row = {}
-            for field_name in requested_fields:
-                if field_name in row:
-                    ordered_row[field_name] = row[field_name]
-                elif field_name == 'id' and 'id' in row:
-                    ordered_row['id'] = row['id']
-            ordered_data.append(ordered_row)
-    else:
-        # No specific order requested, use as-is
-        ordered_data = [dict(row) for row in results]
-    
-    # Build pagination links
-    base_url = str(router.url_path_for('get_individual_quantitative_dietary_data_food_and_diet'))
-    
-    # Collect all query parameters
-    all_params = {
-        'limit': limit,
-        'offset': offset,
-        'survey_code': survey_code,
-        'survey': survey,
-        'geographic_level_code': geographic_level_code,
-        'geographic_level': geographic_level,
-        'population_age_group_code': population_age_group_code,
-        'population_age_group': population_age_group,
-        'food_group_code': food_group_code,
-        'food_group': food_group,
-        'indicator_code': indicator_code,
-        'indicator': indicator,
-        'element_code': element_code,
-        'element': element,
-        'sex_code': sex_code,
-        'sex': sex,
-        'flag': flag,
-        'description': description,
-        'unit': unit,
-        'unit_exact': unit_exact,
-        'value': value,
-        'value_min': value_min,
-        'value_max': value_max,
-        'note': note,
-        'note_exact': note_exact,
-        'include_all_reference_columns': include_all_reference_columns,
-        'fields': fields,
-        'sort': sort,
-    }
-    
-    links = create_pagination_links(base_url, total_count, limit, offset, all_params)
-    
-    # Set response headers
-    response.headers["X-Total-Count"] = str(total_count)
-    response.headers["X-Total-Pages"] = str(total_pages)
-    response.headers["X-Current-Page"] = str(current_page)
-    response.headers["X-Per-Page"] = str(limit)
-    
-    # Build Link header
-    link_parts = []
-    for rel, url in links.items():
-        link_parts.append(f'<{url}>; rel="{rel}"')
-    if link_parts:
-        response.headers["Link"] = ", ".join(link_parts)
-    
-    # Return response with pagination metadata
-    return {
-        "data": ordered_data,
-        "pagination": {
-            "total": total_count,
-            "total_pages": total_pages,
-            "current_page": current_page,
-            "per_page": limit,
-            "from": offset + 1 if results else 0,
-            "to": offset + len(results),
-            "has_next": current_page < total_pages,
-            "has_prev": current_page > 1,
-        },
-        "links": links,
-        "_meta": {
-            "generated_at": datetime.utcnow().isoformat(),
-            "filters_applied": sum(1 for v in all_params.values() if v is not None and v != '' and v != False),
-        }
-    }
+    results = router_handler.query_builder.paginate(limit, offset).execute(db)
 
+    # Format aggregation results
+    response_data = router_handler.format_aggregation_results(results)
 
-# Keep all existing metadata endpoints unchanged...
-# Metadata endpoints for understanding the dataset
+    print(f"SQL Query: {router_handler.query_builder.query}")
 
-
-
-
-@router.get("/surveys")
-@cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:surveys", ttl=604800)
-def get_available_surveys(db: Session = Depends(get_db)):
-    """Get all surveys in this dataset"""
-    query = (
-        select(
-            Surveys.survey_code,
-            Surveys.survey
-        )
-        .where(Surveys.source_dataset == 'individual_quantitative_dietary_data_food_and_diet')
-        .order_by(Surveys.survey_code)
+    # Build response
+    return router_handler.build_response(
+        request=request,
+        response=response,
+        data=response_data,
+        total_count=total_count,
+        filter_count=filter_count,
+        limit=limit,
+        offset=offset,
+        survey_code=survey_code,
+        survey=survey,
+        geographic_level_code=geographic_level_code,
+        geographic_level=geographic_level,
+        population_age_group_code=population_age_group_code,
+        population_age_group=population_age_group,
+        food_group_code=food_group_code,
+        food_group=food_group,
+        indicator_code=indicator_code,
+        indicator=indicator,
+        element_code=element_code,
+        element=element,
+        sex_code=sex_code,
+        sex=sex,
+        flag=flag,
+        description=description,
+        unit=unit,
+        value=value,
+        value_min=value_min,
+        value_max=value_max,
+        note=note,
+        sort=sort,
     )
-    
-    results = db.execute(query).all()
-    
-    return {
-        "dataset": "individual_quantitative_dietary_data_food_and_diet",
-        "total_surveys": len(results),
-        "surveys": [
-            {
-                "survey_code": r.survey_code,
-                "survey": r.survey
-            }
-            for r in results
-        ]
-    }
 
 
 
-
-@router.get("/geographic_levels")
-@cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:geographic_levels", ttl=604800)
-def get_available_geographic_levels(db: Session = Depends(get_db)):
-    """Get all geographic levels in this dataset"""
-    query = (
-        select(
-            GeographicLevels.geographic_level_code,
-            GeographicLevels.geographic_level
-        )
-        .where(GeographicLevels.source_dataset == 'individual_quantitative_dietary_data_food_and_diet')
-        .order_by(GeographicLevels.geographic_level_code)
-    )
-    
-    results = db.execute(query).all()
-    
-    return {
-        "dataset": "individual_quantitative_dietary_data_food_and_diet",
-        "total_geographic_levels": len(results),
-        "geographic_levels": [
-            {
-                "geographic_level_code": r.geographic_level_code,
-                "geographic_level": r.geographic_level
-            }
-            for r in results
-        ]
-    }
-
-
-
-
-@router.get("/population_age_groups")
-@cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:population_age_groups", ttl=604800)
-def get_available_population_age_groups(db: Session = Depends(get_db)):
-    """Get all population age groups in this dataset"""
-    query = (
-        select(
-            PopulationAgeGroups.population_age_group_code,
-            PopulationAgeGroups.population_age_group
-        )
-        .where(PopulationAgeGroups.source_dataset == 'individual_quantitative_dietary_data_food_and_diet')
-        .order_by(PopulationAgeGroups.population_age_group_code)
-    )
-    
-    results = db.execute(query).all()
-    
-    return {
-        "dataset": "individual_quantitative_dietary_data_food_and_diet",
-        "total_population_age_groups": len(results),
-        "population_age_groups": [
-            {
-                "population_age_group_code": r.population_age_group_code,
-                "population_age_group": r.population_age_group
-            }
-            for r in results
-        ]
-    }
-
-
-
-
-@router.get("/food_groups")
-@cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:food_groups", ttl=604800)
-def get_available_food_groups(db: Session = Depends(get_db)):
-    """Get all food groups in this dataset"""
-    query = (
-        select(
-            FoodGroups.food_group_code,
-            FoodGroups.food_group
-        )
-        .where(FoodGroups.source_dataset == 'individual_quantitative_dietary_data_food_and_diet')
-        .order_by(FoodGroups.food_group_code)
-    )
-    
-    results = db.execute(query).all()
-    
-    return {
-        "dataset": "individual_quantitative_dietary_data_food_and_diet",
-        "total_food_groups": len(results),
-        "food_groups": [
-            {
-                "food_group_code": r.food_group_code,
-                "food_group": r.food_group
-            }
-            for r in results
-        ]
-    }
-
-
-
-
-@router.get("/indicators")
-@cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:indicators", ttl=604800)
-def get_available_indicators(db: Session = Depends(get_db)):
-    """Get all indicators in this dataset"""
-    query = (
-        select(
-            Indicators.indicator_code,
-            Indicators.indicator
-        )
-        .where(Indicators.source_dataset == 'individual_quantitative_dietary_data_food_and_diet')
-        .order_by(Indicators.indicator_code)
-    )
-    
-    results = db.execute(query).all()
-    
-    return {
-        "dataset": "individual_quantitative_dietary_data_food_and_diet",
-        "total_indicators": len(results),
-        "indicators": [
-            {
-                "indicator_code": r.indicator_code,
-                "indicator": r.indicator
-            }
-            for r in results
-        ]
-    }
-
-
-@router.get("/elements")
+# ----------------------------------------
+# ========== Metadata Endpoints ==========
+# ----------------------------------------
+@router.get("/elements", summary="Get Elements in individual_quantitative_dietary_data_food_and_diet")
 @cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:elements", ttl=604800)
-def get_available_elements(db: Session = Depends(get_db)):
-    """Get all elements (measures/indicators) in this dataset"""
+async def get_available_elements(
+    db: Session = Depends(get_db),
+    search: Optional[str] = Query(None, description="Search element by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Set True to include distribution statistics"),
+):
+    """Get all elements (measures/indicators) available in this dataset."""
     query = (
         select(
-            Elements.element_code,  
-            Elements.element
+            Elements.element_code,
+            Elements.element,
         )
+        .select_from(Elements)
         .where(Elements.source_dataset == 'individual_quantitative_dietary_data_food_and_diet')
-        .order_by(Elements.element_code)
+        .group_by(
+            Elements.element_code,
+            Elements.element,
+        )
     )
+
+    if include_distribution:
+        query = (
+            select(
+                Elements.element_code,
+                Elements.element,
+                func.count(IndividualQuantitativeDietaryDataFoodAndDiet.id).label('record_count')
+            )
+            .select_from(Elements)
+            .join(IndividualQuantitativeDietaryDataFoodAndDiet, Elements.id == IndividualQuantitativeDietaryDataFoodAndDiet.element_id)
+            .where(Elements.source_dataset == 'individual_quantitative_dietary_data_food_and_diet')
+            .group_by(
+                Elements.element_code,
+                Elements.element,
+            )
+        )
+    # Apply filters
+    if search:
+        query = query.where(
+            or_(
+                Elements.element.ilike(f"%{search}%"),
+                Elements.element_code.cast(String).like(f"{search}%")
+            )
+        )
+   
     
+    # Execute
+    query = query.order_by(Elements.element_code)
     results = db.execute(query).all()
-    
-    return {
-        "dataset": "individual_quantitative_dietary_data_food_and_diet",
-        "total_elements": len(results),
-        "elements": [
+    items = [
+        {
+            "element_code": r.element_code,
+            "element": r.element,
+        }
+        for r in results
+    ]
+
+    if include_distribution:
+        # If distribution is requested, we need to count records for each element
+        items = [
             {
                 "element_code": r.element_code,
                 "element": r.element,
+                "record_count": r.record_count,
             }
             for r in results
         ]
-    }
-
-
-
-
-
-
-@router.get("/sexs")
-@cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:sexs", ttl=604800)
-def get_available_sexs(db: Session = Depends(get_db)):
-    """Get all sex categories in this dataset"""
-    query = (
-        select(
-            Sexs.sex_code,
-            Sexs.sex
-        )
-        .where(Sexs.source_dataset == 'individual_quantitative_dietary_data_food_and_diet')
-        .order_by(Sexs.sex_code)
+        
+    return ResponseFormatter.format_metadata_response(
+        dataset="individual_quantitative_dietary_data_food_and_diet",
+        metadata_type="elements",
+        total=len(results),
+        items=items
     )
-    
-    results = db.execute(query).all()
-    
-    return {
-        "dataset": "individual_quantitative_dietary_data_food_and_diet",
-        "total_sexs": len(results),
-        "sexs": [
-            {
-                "sex_code": r.sex_code,
-                "sex": r.sex
-            }
-            for r in results
-        ]
-    }
 
-
-
-@router.get("/flags")
+@router.get("/flags", summary="Get Flags in individual_quantitative_dietary_data_food_and_diet")
 @cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:flags", ttl=604800)
-def get_data_quality_summary(db: Session = Depends(get_db)):
-    """Get data quality flag distribution for this dataset"""
+async def get_available_flags(
+    db: Session = Depends(get_db),
+    search: Optional[str] = Query(None, description="Search description by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Include distribution statistics"),
+):
+    """Get data quality flag information and optionally their distribution in the dataset."""
+    # Get all flags used in this dataset
     query = (
         select(
+            Flags.id,
             Flags.flag,
             Flags.description,
             func.count(IndividualQuantitativeDietaryDataFoodAndDiet.id).label('record_count')
         )
         .join(IndividualQuantitativeDietaryDataFoodAndDiet, Flags.id == IndividualQuantitativeDietaryDataFoodAndDiet.flag_id)
-        .group_by(Flags.flag, Flags.description)
+        .group_by(Flags.id, Flags.flag, Flags.description)
         .order_by(func.count(IndividualQuantitativeDietaryDataFoodAndDiet.id).desc())
+    )
+
+    # Apply search filter
+    if search:
+        query = query.where(
+            or_(
+                Flags.description.ilike(f"%{search}%"),
+                Flags.flag.cast(String) == search,
+            )
+        )
+    
+    flags = db.execute(query).all()
+    
+    flag_info = []
+    for flag in flags:
+        info = {
+            "flag_id": flag.id,
+            "flag": flag.flag,
+            "description": flag.description,
+        }
+        
+        if include_distribution:
+            # Count records with this flag
+            count = db.execute(
+                select(func.count())
+                .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+                .where(IndividualQuantitativeDietaryDataFoodAndDiet.flag_id == flag.id)
+            ).scalar() or 0
+            
+            info["record_count"] = count
+        
+        flag_info.append(info)
+    
+    response = {
+        "dataset": "individual_quantitative_dietary_data_food_and_diet",
+        "total_flags": len(flag_info),
+        "flags": flag_info,
+    }
+    
+    if include_distribution:
+        # Get total records
+        total_records = db.execute(
+            select(func.count()).select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+        ).scalar() or 0
+        
+        response["total_records"] = total_records
+        response["flag_distribution"] = {
+            flag["flag"]: {
+                "count": flag["record_count"],
+                "percentage": round((flag["record_count"] / total_records) * 100, 2) if total_records > 0 else 0
+            }
+            for flag in flag_info
+        }
+    
+    return response
+
+@router.get("/units", summary="Get units of measurement in individual_quantitative_dietary_data_food_and_diet")
+@cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:units", ttl=604800)
+async def get_available_units(db: Session = Depends(get_db)):
+    """Get all units of measurement used in this dataset."""
+    query = (
+        select(
+            IndividualQuantitativeDietaryDataFoodAndDiet.unit,
+            func.count(IndividualQuantitativeDietaryDataFoodAndDiet.id).label('record_count')
+        )
+        .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+        .group_by(IndividualQuantitativeDietaryDataFoodAndDiet.unit)
+        .order_by(IndividualQuantitativeDietaryDataFoodAndDiet.unit)
     )
     
     results = db.execute(query).all()
     
-    return {
-        "dataset": "individual_quantitative_dietary_data_food_and_diet",
-        "total_records": sum(r.record_count for r in results),
-        "flag_distribution": [
+    return ResponseFormatter.format_metadata_response(
+        dataset="individual_quantitative_dietary_data_food_and_diet",
+        metadata_type="units",
+        total=len(results),
+        items=[
             {
-                "flag": r.flag,
-                "description": r.description,
+                "unit": r.unit,
                 "record_count": r.record_count,
-                "percentage": round(r.record_count / sum(r2.record_count for r2 in results) * 100, 2)
             }
             for r in results
         ]
-    }
+    )
 
-
-
-@router.get("/summary")
-@cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:summary", ttl=604800)
-def get_dataset_summary(db: Session = Depends(get_db)):
-    """Get comprehensive summary of this dataset"""
-    total_records = db.query(func.count(IndividualQuantitativeDietaryDataFoodAndDiet.id)).scalar()
-    
-    summary = {
+# -----------------------------------------------
+# ========== Dataset Overview Endpoint ==========
+# -----------------------------------------------
+@router.get("/overview", summary="Get complete overview of individual_quantitative_dietary_data_food_and_diet dataset")
+@cache_result(prefix="individual_quantitative_dietary_data_food_and_diet:overview", ttl=3600)
+async def get_dataset_overview(db: Session = Depends(get_db)):
+    """Get a complete overview of the dataset including all available dimensions and statistics."""
+    overview = {
         "dataset": "individual_quantitative_dietary_data_food_and_diet",
-        "total_records": total_records,
-        "foreign_keys": [
-            "surveys",
-            "geographic_levels",
-            "population_age_groups",
-            "food_groups",
-            "indicators",
-            "elements",
-            "sexs",
-            "flags",
-        ]
+        "description": "",
+        "last_updated": datetime.utcnow().isoformat(),
+        "dimensions": {},
+        "statistics": {}
     }
     
-    summary["unique_surveys"] = db.query(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.survey_code_id))).scalar()
-    summary["unique_geographic_levels"] = db.query(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.geographic_level_code_id))).scalar()
-    summary["unique_population_age_groups"] = db.query(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.population_age_group_code_id))).scalar()
-    summary["unique_food_groups"] = db.query(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.food_group_code_id))).scalar()
-    summary["unique_indicators"] = db.query(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.indicator_code_id))).scalar()
-    summary["unique_elements"] = db.query(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.element_code_id))).scalar()
-    summary["unique_sexs"] = db.query(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.sex_code_id))).scalar()
-    summary["unique_flags"] = db.query(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.flag_id))).scalar()
+    # Total records
+    total_records = db.execute(
+        select(func.count()).select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+    ).scalar() or 0
+    overview["statistics"]["total_records"] = total_records
     
-    return summary
+
+    survey_code_ids = db.execute(
+        select(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.survey_code_id)))
+        .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+    ).scalar() or 0
+
+    overview["dimensions"]["surveys"] = {
+        "count": survey_code_ids,
+        "endpoint": f"/individual_quantitative_dietary_data_food_and_diet/surveys"
+    }
+
+    geographic_level_code_ids = db.execute(
+        select(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.geographic_level_code_id)))
+        .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+    ).scalar() or 0
+
+    overview["dimensions"]["geographic_levels"] = {
+        "count": geographic_level_code_ids,
+        "endpoint": f"/individual_quantitative_dietary_data_food_and_diet/geographic_levels"
+    }
+
+    population_age_group_code_ids = db.execute(
+        select(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.population_age_group_code_id)))
+        .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+    ).scalar() or 0
+
+    overview["dimensions"]["population_age_groups"] = {
+        "count": population_age_group_code_ids,
+        "endpoint": f"/individual_quantitative_dietary_data_food_and_diet/population_age_groups"
+    }
+
+    food_group_code_ids = db.execute(
+        select(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.food_group_code_id)))
+        .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+    ).scalar() or 0
+
+    overview["dimensions"]["food_groups"] = {
+        "count": food_group_code_ids,
+        "endpoint": f"/individual_quantitative_dietary_data_food_and_diet/food_groups"
+    }
+
+    indicator_code_ids = db.execute(
+        select(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.indicator_code_id)))
+        .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+    ).scalar() or 0
+
+    overview["dimensions"]["indicators"] = {
+        "count": indicator_code_ids,
+        "endpoint": f"/individual_quantitative_dietary_data_food_and_diet/indicators"
+    }
+
+    element_code_ids = db.execute(
+        select(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.element_code_id)))
+        .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+    ).scalar() or 0
+
+    overview["dimensions"]["elements"] = {
+        "count": element_code_ids,
+        "endpoint": f"/individual_quantitative_dietary_data_food_and_diet/elements"
+    }
+
+    sex_code_ids = db.execute(
+        select(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.sex_code_id)))
+        .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+    ).scalar() or 0
+
+    overview["dimensions"]["sexs"] = {
+        "count": sex_code_ids,
+        "endpoint": f"/individual_quantitative_dietary_data_food_and_diet/sexs"
+    }
+
+    flag_ids = db.execute(
+        select(func.count(func.distinct(IndividualQuantitativeDietaryDataFoodAndDiet.flag_id)))
+        .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+    ).scalar() or 0
+
+    overview["dimensions"]["flags"] = {
+        "count": flag_ids,
+        "endpoint": f"/individual_quantitative_dietary_data_food_and_diet/flags"
+    }
+    
+    
+    # Value statistics
+    value_stats = db.execute(
+        select(
+            func.min(IndividualQuantitativeDietaryDataFoodAndDiet.value).label('min_value'),
+            func.max(IndividualQuantitativeDietaryDataFoodAndDiet.value).label('max_value'),
+            func.avg(IndividualQuantitativeDietaryDataFoodAndDiet.value).label('avg_value')
+        )
+        .select_from(IndividualQuantitativeDietaryDataFoodAndDiet)
+        .where(and_(IndividualQuantitativeDietaryDataFoodAndDiet.value > 0, IndividualQuantitativeDietaryDataFoodAndDiet.value.is_not(None)))
+    ).first()
+    
+    overview["statistics"]["values"] = {
+        "min": float(value_stats.min_value) if value_stats.min_value else None,
+        "max": float(value_stats.max_value) if value_stats.max_value else None,
+        "average": round(float(value_stats.avg_value), 2) if value_stats.avg_value else None,
+    }
+    
+    # Available endpoints
+    overview["endpoints"] = {
+        "data": f"/individual_quantitative_dietary_data_food_and_diet",
+        "aggregate": f"/individual_quantitative_dietary_data_food_and_diet/aggregate",
+        "summary": f"/individual_quantitative_dietary_data_food_and_diet/summary",
+        "overview": f"/individual_quantitative_dietary_data_food_and_diet/overview",
+        "elements": f"/individual_quantitative_dietary_data_food_and_diet/elements",
+        "flags": f"/individual_quantitative_dietary_data_food_and_diet/flags",
+    }
+    
+    return overview
+
+ 
+@router.get("/health", tags=["health"])
+async def health_check(db: Session = Depends(get_db)):
+    """Check if the individual_quantitative_dietary_data_food_and_diet endpoint is healthy."""
+    try:
+        # Try to execute a simple query
+        result = db.execute(select(func.count()).select_from(IndividualQuantitativeDietaryDataFoodAndDiet)).scalar()
+        return {
+            "status": "healthy",
+            "dataset": "individual_quantitative_dietary_data_food_and_diet",
+            "records": result
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Health check failed: {str(e)}")

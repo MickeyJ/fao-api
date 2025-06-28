@@ -21,9 +21,9 @@ class FAOAPIError(Exception):
         self,
         message: str,
         error_type: str,
-        error_code: ErrorCode | str,  # Accept both enum and string
+        error_code: ErrorCode | str,
         status_code: int = 400,
-        param: Optional[str] = None,
+        params: Optional[str | list[str]] = None,
         detail: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
@@ -35,7 +35,7 @@ class FAOAPIError(Exception):
             error_type: Category of error (validation_error, data_not_found, etc.)
             error_code: Machine-readable error code (ErrorCode enum or string)
             status_code: HTTP status code
-            param: Parameter that caused the error (if applicable)
+            params: Parameter(s) that caused the error (if applicable)
             detail: Extended explanation of the error
             metadata: Additional context-specific information
         """
@@ -44,7 +44,7 @@ class FAOAPIError(Exception):
         # Convert enum to string value
         self.error_code = error_code.value if isinstance(error_code, ErrorCode) else error_code
         self.status_code = status_code
-        self.param = param
+        self.params = params
         self.detail = detail
         self.metadata = metadata or {}
         super().__init__(self.message)
@@ -63,8 +63,8 @@ class FAOAPIError(Exception):
         }
 
         # Add optional fields if present
-        if self.param:
-            error_dict["error"]["param"] = self.param
+        if self.params:
+            error_dict["error"]["params"] = self.params
         if self.detail:
             error_dict["error"]["detail"] = self.detail
         if self.metadata:
@@ -76,14 +76,22 @@ class FAOAPIError(Exception):
 class ValidationError(FAOAPIError):
     """Raised when input parameters fail validation."""
 
-    def __init__(self, message: str, error_code: str, param: str, **kwargs):
+    def __init__(
+        self,
+        message: str,
+        error_code: str,
+        params: str | list[str],
+        detail: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(
             message=message,
             error_type="validation_error",
             error_code=error_code,
             status_code=400,
-            param=param,
-            **kwargs,
+            params=params,
+            detail=detail,
+            metadata=metadata,
         )
 
 
@@ -139,9 +147,12 @@ class RateLimitError(FAOAPIError):
         reset_time: Optional[datetime] = None,
         limit: Optional[int] = None,
         period: Optional[str] = None,
-        **kwargs,
+        detail: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
-        metadata = kwargs.get("metadata", {})
+        if metadata is None:
+            metadata = {}
+
         if reset_time:
             metadata["reset_time"] = reset_time.isoformat() + "Z"
         if limit:
@@ -149,14 +160,17 @@ class RateLimitError(FAOAPIError):
         if period:
             metadata["period"] = period
 
-        kwargs["metadata"] = metadata
-
         # Generate message from template if not provided
         if message is None:
             message = get_error_message(error_code, limit=limit, period=period or "hour")
 
         super().__init__(
-            message=message, error_type="rate_limit_error", error_code=error_code, status_code=429, **kwargs
+            message=message,
+            error_type="rate_limit_error",
+            error_code=error_code,
+            status_code=429,
+            detail=detail,
+            metadata=metadata,
         )
 
 
@@ -174,7 +188,7 @@ class ServerError(FAOAPIError):
 class ExternalServiceError(FAOAPIError):
     """Raised when external service (database, cache, etc.) is unavailable."""
 
-    def __init__(self, service: str, message: Optional[str] = None, **kwargs):
+    def __init__(self, service: str, message: Optional[str] = None, detail: Optional[str] = None):
         if message is None:
             message = get_error_message(ErrorCode.EXTERNAL_SERVICE_UNAVAILABLE, service=service)
 
@@ -183,8 +197,8 @@ class ExternalServiceError(FAOAPIError):
             error_type="external_service_error",
             error_code=ErrorCode.EXTERNAL_SERVICE_UNAVAILABLE,
             status_code=503,
+            detail=detail,
             metadata={"service": service},
-            **kwargs,
         )
 
 
@@ -196,16 +210,19 @@ class DataQualityError(FAOAPIError):
         message: str,
         error_code: ErrorCode = ErrorCode.DATA_QUALITY_THRESHOLD,
         quality_flags: Optional[List[str]] = None,
-        **kwargs,
+        detail: Optional[str] = None,
     ):
-        metadata = kwargs.get("metadata", {})
+        metadata = {}
         if quality_flags:
             metadata["quality_flags"] = quality_flags
 
-        kwargs["metadata"] = metadata
-
         super().__init__(
-            message=message, error_type="data_quality_error", error_code=error_code, status_code=422, **kwargs
+            message=message,
+            error_type="data_quality_error",
+            error_code=error_code,
+            status_code=422,
+            detail=detail,
+            metadata=metadata,
         )
 
 
@@ -252,20 +269,33 @@ class CacheConnectionError(CacheError):
 class CacheOperationError(CacheError):
     """Raised when cache read/write operation fails."""
 
-    def __init__(self, operation: str, key: Optional[str] = None, message: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        operation: str,
+        key: Optional[str] = None,
+        message: Optional[str] = None,
+        detail: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+
         if message is None:
             message = get_error_message(ErrorCode.CACHE_OPERATION_FAILED, operation=operation)
             if key:
                 message += f" for key: {key[:50]}"  # Truncate long keys
 
-        metadata = kwargs.get("metadata", {})
+        if metadata is None:
+            metadata = {}
+
         metadata["operation"] = operation
         if key:
             metadata["key"] = key[:50]
 
-        kwargs["metadata"] = metadata
-
-        super().__init__(message=message, error_code=ErrorCode.CACHE_OPERATION_FAILED, **kwargs)
+        super().__init__(
+            message=message,
+            error_code=ErrorCode.CACHE_OPERATION_FAILED,
+            detail=detail,
+            metadata=metadata,
+        )
 
 
 class CacheSerializationError(CacheError):
@@ -276,7 +306,7 @@ class CacheSerializationError(CacheError):
         action: str = "serialize",  # "serialize" or "deserialize"
         data_type: Optional[str] = None,
         message: Optional[str] = None,
-        **kwargs,
+        detail: Optional[str] = None,
     ):
         if message is None:
             message = get_error_message(ErrorCode.CACHE_SERIALIZATION_ERROR, action=action)
@@ -286,8 +316,8 @@ class CacheSerializationError(CacheError):
         super().__init__(
             message=message,
             error_code=ErrorCode.CACHE_SERIALIZATION_ERROR,
+            detail=detail,
             metadata={"action": action, "data_type": data_type},
-            **kwargs,
         )
 
 
@@ -352,22 +382,22 @@ def cache_deserialization_failed(error: Optional[Exception] = None) -> CacheSeri
     )
 
 
-def invalid_parameter(param: str, value: Any, reason: str) -> ValidationError:
+def invalid_parameter(params: str, value: Any, reason: str) -> ValidationError:
     """Create a validation error for invalid parameter."""
     return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_PARAMETER, param=param, reason=reason),
+        message=get_error_message(ErrorCode.INVALID_PARAMETER, params=params, reason=reason),
         error_code=ErrorCode.INVALID_PARAMETER,
-        param=param,
+        params=params,
         detail=f"Received value: {value}",
     )
 
 
-def missing_parameter(param: str) -> ValidationError:
+def missing_parameter(params: str) -> ValidationError:
     """Create a validation error for missing required parameter."""
     return ValidationError(
-        message=get_error_message(ErrorCode.MISSING_REQUIRED_PARAMETER, param=param),
+        message=get_error_message(ErrorCode.MISSING_REQUIRED_PARAMETER, params=params),
         error_code=ErrorCode.MISSING_REQUIRED_PARAMETER,
-        param=param,
+        params=params,
     )
 
 
@@ -381,17 +411,17 @@ def no_data_found(dataset: str, filters: Dict[str, Any]) -> DataNotFoundError:
     )
 
 
-def incompatible_parameters(param1: str, param2: str, reason: str = "") -> ValidationError:
+def incompatible_parameters(params: List[str], values: List[Any], reason: str = "") -> ValidationError:
     """Create an error for incompatible parameter combination."""
-    message = get_error_message(ErrorCode.INCOMPATIBLE_PARAMETERS, param1=param1, param2=param2)
+    message = get_error_message(ErrorCode.INCOMPATIBLE_PARAMETERS, param1=params[0], param2=params[1])
     if reason:
         message += f": {reason}"
 
     return ValidationError(
         message=message,
         error_code=ErrorCode.INCOMPATIBLE_PARAMETERS,
-        param=f"{param1},{param2}",
-        metadata={"param1": param1, "param2": param2},
+        params=params,
+        metadata={"params": params, "values": values},
     )
 
 
@@ -400,8 +430,38 @@ def invalid_area_code(value: str) -> ValidationError:
     return ValidationError(
         message=get_error_message(ErrorCode.INVALID_AREA_CODE, value=value),
         error_code=ErrorCode.INVALID_AREA_CODE,
-        param="area_code",
+        params="area_code",
         detail=f"Received: '{value}'. Use /area_codes endpoint to see valid codes.",
+    )
+
+
+def invalid_reporter_country_code(value: str) -> ValidationError:
+    """Create an error for invalid reporter country code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_REPORTER_COUNTRY_CODE, value=value),
+        error_code=ErrorCode.INVALID_REPORTER_COUNTRY_CODE,
+        params="reporter_country_code",
+        detail=f"Received: '{value}'. Use /reporter_country_codes endpoint to see valid codes.",
+    )
+
+
+def invalid_partner_country_code(value: str) -> ValidationError:
+    """Create an error for invalid partner country code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_PARTNER_COUNTRY_CODE, value=value),
+        error_code=ErrorCode.INVALID_PARTNER_COUNTRY_CODE,
+        params="partner_country_code",
+        detail=f"Received: '{value}'. Use /partner_country_codes endpoint to see valid codes.",
+    )
+
+
+def invalid_recipient_country_code(value: str) -> ValidationError:
+    """Create an error for invalid recipient country code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_RECIPIENT_COUNTRY_CODE, value=value),
+        error_code=ErrorCode.INVALID_RECIPIENT_COUNTRY_CODE,
+        params="recipient_country_code",
+        detail=f"Received: '{value}'. Use /recipient_country_codes endpoint to see valid codes.",
     )
 
 
@@ -410,7 +470,7 @@ def invalid_item_code(value: str) -> ValidationError:
     return ValidationError(
         message=get_error_message(ErrorCode.INVALID_ITEM_CODE, value=value),
         error_code=ErrorCode.INVALID_ITEM_CODE,
-        param="item_code",
+        params="item_code",
         detail=f"Received: '{value}'. Use /item_codes endpoint to see valid codes.",
     )
 
@@ -420,7 +480,7 @@ def invalid_element_code(value: str) -> ValidationError:
     return ValidationError(
         message=get_error_message(ErrorCode.INVALID_ELEMENT_CODE, value=value),
         error_code=ErrorCode.INVALID_ELEMENT_CODE,
-        param="element_code",
+        params="element_code",
         detail=f"Received: '{value}'. Use /elements endpoint to see valid codes.",
     )
 
@@ -428,20 +488,20 @@ def invalid_element_code(value: str) -> ValidationError:
 def invalid_flag(value: str) -> ValidationError:
     """Create an error for invalid flag."""
     return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_FLAG_CODE, value=value),
-        error_code=ErrorCode.INVALID_FLAG_CODE,
-        param="flag",
+        message=get_error_message(ErrorCode.INVALID_FLAG, value=value),
+        error_code=ErrorCode.INVALID_FLAG,
+        params="flag",
         detail=f"Received: '{value}'. Use /flags endpoint to see valid codes.",
     )
 
 
-def invalid_donor_code(value: str) -> ValidationError:
-    """Create an error for invalid donor code."""
+def invalid_iso_currency_code(value: str) -> ValidationError:
+    """Create an error for invalid iso currency code."""
     return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_DONOR_CODE, value=value),
-        error_code=ErrorCode.INVALID_DONOR_CODE,
-        param="donor_code",
-        detail=f"Received: '{value}'. Use /donors endpoint to see valid codes.",
+        message=get_error_message(ErrorCode.INVALID_ISO_CURRENCY_CODE, value=value),
+        error_code=ErrorCode.INVALID_ISO_CURRENCY_CODE,
+        params="iso_currency_code",
+        detail=f"Received: '{value}'. Use /currencies endpoint to see valid codes.",
     )
 
 
@@ -450,28 +510,8 @@ def invalid_source_code(value: str) -> ValidationError:
     return ValidationError(
         message=get_error_message(ErrorCode.INVALID_SOURCE_CODE, value=value),
         error_code=ErrorCode.INVALID_SOURCE_CODE,
-        param="source_code",
+        params="source_code",
         detail=f"Received: '{value}'. Use /sources endpoint to see valid codes.",
-    )
-
-
-def invalid_purpose_code(value: str) -> ValidationError:
-    """Create an error for invalid purpose code."""
-    return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_PURPOSE_CODE, value=value),
-        error_code=ErrorCode.INVALID_PURPOSE_CODE,
-        param="purpose_code",
-        detail=f"Received: '{value}'. Use /purposes endpoint to see valid codes.",
-    )
-
-
-def invalid_sex_code(value: str) -> ValidationError:
-    """Create an error for invalid sex code."""
-    return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_SEX_CODE, value=value),
-        error_code=ErrorCode.INVALID_SEX_CODE,
-        param="sex_code",
-        detail=f"Received: '{value}'. Use /sexs endpoint to see valid codes.",
     )
 
 
@@ -480,68 +520,18 @@ def invalid_release_code(value: str) -> ValidationError:
     return ValidationError(
         message=get_error_message(ErrorCode.INVALID_RELEASE_CODE, value=value),
         error_code=ErrorCode.INVALID_RELEASE_CODE,
-        param="release_code",
+        params="release_code",
         detail=f"Received: '{value}'. Use /releases endpoint to see valid codes.",
     )
 
 
-def invalid_reporter_country_code(value: str) -> ValidationError:
-    """Create an error for invalid reporter_country code."""
+def invalid_sex_code(value: str) -> ValidationError:
+    """Create an error for invalid sex code."""
     return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_REPORTER_COUNTRY_CODE, value=value),
-        error_code=ErrorCode.INVALID_REPORTER_COUNTRY_CODE,
-        param="reporter_country_code",
-        detail=f"Received: '{value}'. Use /reporter_country_codes endpoint to see valid codes.",
-    )
-
-
-def invalid_partner_country_code(value: str) -> ValidationError:
-    """Create an error for invalid partner_country code."""
-    return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_PARTNER_COUNTRY_CODE, value=value),
-        error_code=ErrorCode.INVALID_PARTNER_COUNTRY_CODE,
-        param="partner_country_code",
-        detail=f"Received: '{value}'. Use /partner_country_codes endpoint to see valid codes.",
-    )
-
-
-def invalid_recipient_country_code(value: str) -> ValidationError:
-    """Create an error for invalid recipient_country code."""
-    return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_RECIPIENT_COUNTRY_CODE, value=value),
-        error_code=ErrorCode.INVALID_RECIPIENT_COUNTRY_CODE,
-        param="recipient_country_code",
-        detail=f"Received: '{value}'. Use /recipient_country_codes endpoint to see valid codes.",
-    )
-
-
-def invalid_currency_code(value: str) -> ValidationError:
-    """Create an error for invalid currency code."""
-    return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_CURRENCY_CODE, value=value),
-        error_code=ErrorCode.INVALID_CURRENCY_CODE,
-        param="currency_code",
-        detail=f"Received: '{value}'. Use /currencies endpoint to see valid codes.",
-    )
-
-
-def invalid_survey_code(value: str) -> ValidationError:
-    """Create an error for invalid survey code."""
-    return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_SURVEY_CODE, value=value),
-        error_code=ErrorCode.INVALID_SURVEY_CODE,
-        param="survey_code",
-        detail=f"Received: '{value}'. Use /surveys endpoint to see valid codes.",
-    )
-
-
-def invalid_population_age_group_code(value: str) -> ValidationError:
-    """Create an error for invalid population age group code."""
-    return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_POPULATION_AGE_GROUP_CODE, value=value),
-        error_code=ErrorCode.INVALID_POPULATION_AGE_GROUP_CODE,
-        param="population_age_group_code",
-        detail=f"Received: '{value}'. Use /population_age_groups endpoint to see valid codes.",
+        message=get_error_message(ErrorCode.INVALID_SEX_CODE, value=value),
+        error_code=ErrorCode.INVALID_SEX_CODE,
+        params="sex_code",
+        detail=f"Received: '{value}'. Use /sexs endpoint to see valid codes.",
     )
 
 
@@ -550,8 +540,48 @@ def invalid_indicator_code(value: str) -> ValidationError:
     return ValidationError(
         message=get_error_message(ErrorCode.INVALID_INDICATOR_CODE, value=value),
         error_code=ErrorCode.INVALID_INDICATOR_CODE,
-        param="indicator_code",
+        params="indicator_code",
         detail=f"Received: '{value}'. Use /indicators endpoint to see valid codes.",
+    )
+
+
+def invalid_population_age_group_code(value: str) -> ValidationError:
+    """Create an error for invalid population age group code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_POPULATION_AGE_GROUP_CODE, value=value),
+        error_code=ErrorCode.INVALID_POPULATION_AGE_GROUP_CODE,
+        params="population_age_group_code",
+        detail=f"Received: '{value}'. Use /population_age_groups endpoint to see valid codes.",
+    )
+
+
+def invalid_survey_code(value: str) -> ValidationError:
+    """Create an error for invalid survey code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_SURVEY_CODE, value=value),
+        error_code=ErrorCode.INVALID_SURVEY_CODE,
+        params="survey_code",
+        detail=f"Received: '{value}'. Use /surveys endpoint to see valid codes.",
+    )
+
+
+def invalid_purpose_code(value: str) -> ValidationError:
+    """Create an error for invalid purpose code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_PURPOSE_CODE, value=value),
+        error_code=ErrorCode.INVALID_PURPOSE_CODE,
+        params="purpose_code",
+        detail=f"Received: '{value}'. Use /purposes endpoint to see valid codes.",
+    )
+
+
+def invalid_donor_code(value: str) -> ValidationError:
+    """Create an error for invalid donor code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_DONOR_CODE, value=value),
+        error_code=ErrorCode.INVALID_DONOR_CODE,
+        params="donor_code",
+        detail=f"Received: '{value}'. Use /donors endpoint to see valid codes.",
     )
 
 
@@ -560,7 +590,7 @@ def invalid_food_group_code(value: str) -> ValidationError:
     return ValidationError(
         message=get_error_message(ErrorCode.INVALID_FOOD_GROUP_CODE, value=value),
         error_code=ErrorCode.INVALID_FOOD_GROUP_CODE,
-        param="food_group_code",
+        params="food_group_code",
         detail=f"Received: '{value}'. Use /food_groups endpoint to see valid codes.",
     )
 
@@ -570,16 +600,46 @@ def invalid_geographic_level_code(value: str) -> ValidationError:
     return ValidationError(
         message=get_error_message(ErrorCode.INVALID_GEOGRAPHIC_LEVEL_CODE, value=value),
         error_code=ErrorCode.INVALID_GEOGRAPHIC_LEVEL_CODE,
-        param="geographic_level_code",
+        params="geographic_level_code",
         detail=f"Received: '{value}'. Use /geographic_levels endpoint to see valid codes.",
     )
 
 
-def invalid_year_range(value: int) -> ValidationError:
-    """Create an error for year outside valid range."""
+def invalid_food_value_code(value: str) -> ValidationError:
+    """Create an error for invalid food value code."""
     return ValidationError(
-        message=get_error_message(ErrorCode.INVALID_YEAR_RANGE, value=value),
-        error_code=ErrorCode.INVALID_YEAR_RANGE,
-        param="year",
-        detail=f"FAO data is available from 1961 to 2024. Requested year: {value}",
+        message=get_error_message(ErrorCode.INVALID_FOOD_VALUE_CODE, value=value),
+        error_code=ErrorCode.INVALID_FOOD_VALUE_CODE,
+        params="food_value_code",
+        detail=f"Received: '{value}'. Use /food_values endpoint to see valid codes.",
+    )
+
+
+def invalid_industry_code(value: str) -> ValidationError:
+    """Create an error for invalid industry code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_INDUSTRY_CODE, value=value),
+        error_code=ErrorCode.INVALID_INDUSTRY_CODE,
+        params="industry_code",
+        detail=f"Received: '{value}'. Use /industries endpoint to see valid codes.",
+    )
+
+
+def invalid_factor_code(value: str) -> ValidationError:
+    """Create an error for invalid factor code."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_FACTOR_CODE, value=value),
+        error_code=ErrorCode.INVALID_FACTOR_CODE,
+        params="factor_code",
+        detail=f"Received: '{value}'. Use /factors endpoint to see valid codes.",
+    )
+
+
+def invalid_range(params: List[str], values: List[int]) -> ValidationError:
+    """Create an error for value outside valid range."""
+    return ValidationError(
+        message=get_error_message(ErrorCode.INVALID_RANGE, value=f"{params}: {values}"),
+        error_code=ErrorCode.INVALID_RANGE,
+        params=params,
+        detail=f"minimum value must be less than maximum value",
     )

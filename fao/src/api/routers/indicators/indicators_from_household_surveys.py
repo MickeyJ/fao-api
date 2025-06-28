@@ -1,577 +1,651 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, Response
+# templates/api_router.py.jinja2 (refactored main)
+from fastapi import APIRouter, Depends, Query, HTTPException, Response, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, or_, text, String, Integer, Float, SmallInteger
-from typing import Optional, Union, Dict, List
+from sqlalchemy import select, func, or_, and_, String
+from typing import Optional, List, Union
+from datetime import datetime
+
+from fao.logger import logger
 from fao.src.core.cache import cache_result
 from fao.src.core import settings
 from fao.src.db.database import get_db
 from fao.src.db.pipelines.indicators_from_household_surveys.indicators_from_household_surveys_model import IndicatorsFromHouseholdSurveys
-import math
-from datetime import datetime
-# Import core/reference tables for joins
+
+
 from fao.src.db.pipelines.surveys.surveys_model import Surveys
 from fao.src.db.pipelines.indicators.indicators_model import Indicators
 from fao.src.db.pipelines.elements.elements_model import Elements
 from fao.src.db.pipelines.flags.flags_model import Flags
+
+# Import utilities
+
+from fao.src.api.utils.router_handler import RouterHandler
+from .indicators_from_household_surveys_config import IndicatorsFromHouseholdSurveysConfig
+from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
+from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
+
+
 
 router = APIRouter(
     prefix="/indicators_from_household_surveys",
     responses={404: {"description": "Not found"}},
 )
 
-def create_pagination_links(base_url: str, total_count: int, limit: int, offset: int, params: dict) -> dict:
-    """Generate pagination links for response headers"""
-    links = {}
-    total_pages = math.ceil(total_count / limit) if limit > 0 else 1
-    current_page = (offset // limit) + 1 if limit > 0 else 1
-    
-    # Remove offset from params to rebuild
-    query_params = {k: v for k, v in params.items() if k not in ['offset', 'limit'] and v is not None}
-    
-    # Helper to build URL
-    def build_url(new_offset: int) -> str:
-        params_str = "&".join([f"{k}={v}" for k, v in query_params.items()])
-        return f"{base_url}?limit={limit}&offset={new_offset}" + (f"&{params_str}" if params_str else "")
-    
-    # First page
-    links['first'] = build_url(0)
-    
-    # Last page
-    last_offset = (total_pages - 1) * limit
-    links['last'] = build_url(last_offset)
-    
-    # Next page (if not on last page)
-    if current_page < total_pages:
-        links['next'] = build_url(offset + limit)
-    
-    # Previous page (if not on first page)
-    if current_page > 1:
-        links['prev'] = build_url(max(0, offset - limit))
-    
-    return links
 
-@router.get("/")
-@cache_result(prefix="indicators_from_household_surveys", ttl=86400, exclude_params=["response", "db"])
-def get_indicators_from_household_surveys(
+config = IndicatorsFromHouseholdSurveysConfig()
+
+@router.get("/", summary="Get indicators from household surveys data")
+async def get_indicators_from_household_surveys_data(
+    request: Request,
     response: Response,
-    limit: int = Query(100, le=1000, ge=1, description="Maximum records to return"),
+    db: Session = Depends(get_db),
+    # Standard parameters
+    limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
-    survey_code: Optional[str] = Query(None, description="Filter by surveys code"),
-    survey: Optional[str] = Query(None, description="Filter by surveys description"),
-    indicator_code: Optional[str] = Query(None, description="Filter by indicators code"),
-    indicator: Optional[str] = Query(None, description="Filter by indicators description"),
-    element_code: Optional[str] = Query(None, description="Filter by elements code"),
-    element: Optional[str] = Query(None, description="Filter by elements description"),
-    flag: Optional[str] = Query(None, description="Filter by flags code"),
-    description: Optional[str] = Query(None, description="Filter by flags description"),
-    # Dynamic column filters based on model
+    # Filter parameters
+    survey_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by survey_code code (comma-separated for multiple)"),
+    survey: Optional[str] = Query(None, description="Filter by survey description (partial match)"),
+    indicator_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by indicator_code code (comma-separated for multiple)"),
+    indicator: Optional[str] = Query(None, description="Filter by indicator description (partial match)"),
+    element_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by element_code code (comma-separated for multiple)"),
+    element: Optional[str] = Query(None, description="Filter by element description (partial match)"),
+    flag: Optional[Union[str, List[str]]] = Query(None, description="Filter by flag code (comma-separated for multiple)"),
+    description: Optional[str] = Query(None, description="Filter by description description (partial match)"),
     breakdown_variable_code: Optional[str] = Query(None, description="Filter by breakdown variable code (partial match)"),
-    breakdown_variable_code_exact: Optional[str] = Query(None, description="Filter by exact breakdown variable code"),
     breakdown_variable: Optional[str] = Query(None, description="Filter by breakdown variable (partial match)"),
-    breakdown_variable_exact: Optional[str] = Query(None, description="Filter by exact breakdown variable"),
     breadown_by_sex_of_the_household_head_code: Optional[str] = Query(None, description="Filter by breadown by sex of the household head code (partial match)"),
-    breadown_by_sex_of_the_household_head_code_exact: Optional[str] = Query(None, description="Filter by exact breadown by sex of the household head code"),
     breadown_by_sex_of_the_household_head: Optional[str] = Query(None, description="Filter by breadown by sex of the household head (partial match)"),
-    breadown_by_sex_of_the_household_head_exact: Optional[str] = Query(None, description="Filter by exact breadown by sex of the household head"),
     unit: Optional[str] = Query(None, description="Filter by unit (partial match)"),
-    unit_exact: Optional[str] = Query(None, description="Filter by exact unit"),
     value: Optional[Union[float, int]] = Query(None, description="Exact value"),
     value_min: Optional[Union[float, int]] = Query(None, description="Minimum value"),
     value_max: Optional[Union[float, int]] = Query(None, description="Maximum value"),
-    include_all_reference_columns: bool = Query(False, description="Include all columns from reference tables"),
-    fields: Optional[str] = Query(None, description="Comma-separated list of fields to return"),
-    sort: Optional[str] = Query(None, description="Sort fields (use - prefix for descending, e.g., 'year,-value')"),
-    db: Session = Depends(get_db)
-) -> Dict:
-    """
-    Get indicators from household surveys data with filters and pagination.
-    
-    ## Pagination
-    - Use `limit` and `offset` for page-based navigation
-    - Response includes pagination metadata and total count
-    - Link headers provided for easy navigation
-    
+    # Option parameters  
+    fields: Optional[List[str]] = Query(None, description="Comma-separated list of fields to return"),
+    sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
+):
+    """Get indicators from household surveys data with advanced filtering and pagination.
+
     ## Filtering
-    - survey_code: Filter by surveys code
-    - survey: Filter by surveys description (partial match)
-    - indicator_code: Filter by indicators code
-    - indicator: Filter by indicators description (partial match)
-    - element_code: Filter by elements code
-    - element: Filter by elements description (partial match)
-    - flag: Filter by flags code
-    - description: Filter by flags description (partial match)
+    - Use comma-separated values for multiple selections (e.g., element_code=102,489)
+    - Use _min/_max suffixes for range queries on numeric fields
+    - Use _exact suffix for exact string matches
+
+    ## Pagination
+    - Use limit and offset parameters
+    - Check pagination metadata in response headers
+
+    ## Sorting
+    - Use format: field:direction (e.g., 'year:desc')
+    - Multiple sorts: 'year:desc,value:asc'
+    """
+
+    router_handler = RouterHandler(
+        db=db, 
+        model=IndicatorsFromHouseholdSurveys, 
+        model_name="IndicatorsFromHouseholdSurveys",
+        table_name="indicators_from_household_surveys",
+        request=request, 
+        response=response, 
+        config=config
+    )
+
+    survey_code = router_handler.clean_param(survey_code, "multi")
+    survey = router_handler.clean_param(survey, "like")
+    indicator_code = router_handler.clean_param(indicator_code, "multi")
+    indicator = router_handler.clean_param(indicator, "like")
+    element_code = router_handler.clean_param(element_code, "multi")
+    element = router_handler.clean_param(element, "like")
+    flag = router_handler.clean_param(flag, "multi")
+    description = router_handler.clean_param(description, "like")
+    breakdown_variable_code = router_handler.clean_param(breakdown_variable_code, "like")
+    breakdown_variable = router_handler.clean_param(breakdown_variable, "like")
+    breadown_by_sex_of_the_household_head_code = router_handler.clean_param(breadown_by_sex_of_the_household_head_code, "like")
+    breadown_by_sex_of_the_household_head = router_handler.clean_param(breadown_by_sex_of_the_household_head, "like")
+    unit = router_handler.clean_param(unit, "like")
+    value = router_handler.clean_param(value, "exact")
+    value_min = router_handler.clean_param(value_min, "range_min")
+    value_max = router_handler.clean_param(value_max, "range_max")
+
+    param_configs = {
+        "limit": limit,
+        "offset": offset,
+        "survey_code": survey_code,
+        "survey": survey,
+        "indicator_code": indicator_code,
+        "indicator": indicator,
+        "element_code": element_code,
+        "element": element,
+        "flag": flag,
+        "description": description,
+        "breakdown_variable_code": breakdown_variable_code,
+        "breakdown_variable": breakdown_variable,
+        "breadown_by_sex_of_the_household_head_code": breadown_by_sex_of_the_household_head_code,
+        "breadown_by_sex_of_the_household_head": breadown_by_sex_of_the_household_head,
+        "unit": unit,
+        "value": value,
+        "value_min": value_min,
+        "value_max": value_max,
+        "fields": fields,
+        "sort": sort,
+    }
+    # Validate field and sort parameter
+    requested_fields, sort_columns = router_handler.validate_fields_and_sort_parameters(fields, sort)
+
+    router_handler.validate_filter_parameters(param_configs, db)
+
+    filter_count = router_handler.apply_filters_from_config(param_configs)
+    total_count = router_handler.query_builder.get_count(db)
+
+    if sort_columns:
+        router_handler.query_builder.add_ordering(sort_columns)
+    else:
+        router_handler.query_builder.add_ordering(router_handler.get_default_sort())
+
+    # Apply pagination and execute
+    results = router_handler.query_builder.paginate(limit, offset).execute(db)
+
+    response_data = router_handler.filter_response_data(results, requested_fields)
+
+    return router_handler.build_response(
+        request=request,
+        response=response,
+        data=response_data,
+        total_count=total_count,
+        filter_count=filter_count,
+        limit=limit,
+        offset=offset,
+        survey_code=survey_code,
+        survey=survey,
+        indicator_code=indicator_code,
+        indicator=indicator,
+        element_code=element_code,
+        element=element,
+        flag=flag,
+        description=description,
+        breakdown_variable_code=breakdown_variable_code,
+        breakdown_variable=breakdown_variable,
+        breadown_by_sex_of_the_household_head_code=breadown_by_sex_of_the_household_head_code,
+        breadown_by_sex_of_the_household_head=breadown_by_sex_of_the_household_head,
+        unit=unit,
+        value=value,
+        value_min=value_min,
+        value_max=value_max,
+        fields=fields,
+        sort=sort,
+    )
+
+# templates/partials/router_aggregation_endpoints.jinja2
+@router.get("/aggregate", summary="Get aggregated indicators from household surveys data")
+async def get_indicators_from_household_surveys_aggregated(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    # Grouping
+    group_by: List[str] = Query(..., description="Comma-separated list of fields to group by"),
+    # Aggregations
+    aggregations: List[str] = Query(..., description="Comma-separated aggregations (e.g., 'value:sum,value:avg:avg_value')"),
+    # Standard parameters
+    limit: int = Query(100, ge=0, le=10000, description="Maximum records to return"),
+    offset: int = Query(0, ge=0, description="Number of records to skip"),
+    # Filter parameters
+    survey_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by survey_code code (comma-separated for multiple)"),
+    survey: Optional[str] = Query(None, description="Filter by survey description (partial match)"),
+    indicator_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by indicator_code code (comma-separated for multiple)"),
+    indicator: Optional[str] = Query(None, description="Filter by indicator description (partial match)"),
+    element_code: Optional[Union[str, List[str]]] = Query(None, description="Filter by element_code code (comma-separated for multiple)"),
+    element: Optional[str] = Query(None, description="Filter by element description (partial match)"),
+    flag: Optional[Union[str, List[str]]] = Query(None, description="Filter by flag code (comma-separated for multiple)"),
+    description: Optional[str] = Query(None, description="Filter by description description (partial match)"),
+    breakdown_variable_code: Optional[str] = Query(None, description="Filter by breakdown variable code (partial match)"),
+    breakdown_variable: Optional[str] = Query(None, description="Filter by breakdown variable (partial match)"),
+    breadown_by_sex_of_the_household_head_code: Optional[str] = Query(None, description="Filter by breadown by sex of the household head code (partial match)"),
+    breadown_by_sex_of_the_household_head: Optional[str] = Query(None, description="Filter by breadown by sex of the household head (partial match)"),
+    unit: Optional[str] = Query(None, description="Filter by unit (partial match)"),
+    value: Optional[Union[float, int]] = Query(None, description="Exact value"),
+    value_min: Optional[Union[float, int]] = Query(None, description="Minimum value"),
+    value_max: Optional[Union[float, int]] = Query(None, description="Maximum value"),
+    # Option parameters  
+    sort: Optional[List[str]] = Query(None, description="Sort fields (e.g., 'year:desc,value:asc')"),
+):
+    """Get aggregated data with grouping and multiple aggregation functions.
     
-    Dataset-specific filters:
-    - breakdown_variable_code: Partial match (case-insensitive)
-    - breakdown_variable_code_exact: Exact match
-    - breakdown_variable: Partial match (case-insensitive)
-    - breakdown_variable_exact: Exact match
-    - breadown_by_sex_of_the_household_head_code: Partial match (case-insensitive)
-    - breadown_by_sex_of_the_household_head_code_exact: Exact match
-    - breadown_by_sex_of_the_household_head: Partial match (case-insensitive)
-    - breadown_by_sex_of_the_household_head_exact: Exact match
-    - unit: Partial match (case-insensitive)
-    - unit_exact: Exact match
-    - value: Exact value
-    - value_min/value_max: Value range
+    ## Examples
+    - Sum by year: `group_by=year&aggregations=value:sum`
+    - Average by area and year: `group_by=area_code,year&aggregations=value:avg`
+    - Multiple aggregations: `aggregations=value:sum:total_value,value:avg:average_value`
     
-    ## Response Format
-    - Returns paginated data with metadata
-    - Total count included for client-side pagination
-    - Links to first, last, next, and previous pages
+    ## Aggregation Functions
+    - sum, avg, min, max, count, count_distinct
     """
     
-    # Build column list for select
-    columns = []
-    column_map = {}  # Map of field name to column object
+    # ------------------------------------------------------------------------
+    # Needs same validation: 
+    # general values, sort and filter param values, 
+    # fk specific validation (checking against actual reference table data)
+    # ------------------------------------------------------------------------
+    router_handler = RouterHandler(
+        db=db, 
+        model=IndicatorsFromHouseholdSurveys, 
+        model_name="IndicatorsFromHouseholdSurveys",
+        table_name="indicators_from_household_surveys",
+        request=request, 
+        response=response, 
+        config=config
+    )
+
+     # Setup aggregation mode
+    router_handler.setup_aggregation(group_by, aggregations)
+
+    # Clean parameters
+    survey_code = router_handler.clean_param(survey_code, "multi")
+    survey = router_handler.clean_param(survey, "like")
+    indicator_code = router_handler.clean_param(indicator_code, "multi")
+    indicator = router_handler.clean_param(indicator, "like")
+    element_code = router_handler.clean_param(element_code, "multi")
+    element = router_handler.clean_param(element, "like")
+    flag = router_handler.clean_param(flag, "multi")
+    description = router_handler.clean_param(description, "like")
+    breakdown_variable_code = router_handler.clean_param(breakdown_variable_code, "like")
+    breakdown_variable = router_handler.clean_param(breakdown_variable, "like")
+    breadown_by_sex_of_the_household_head_code = router_handler.clean_param(breadown_by_sex_of_the_household_head_code, "like")
+    breadown_by_sex_of_the_household_head = router_handler.clean_param(breadown_by_sex_of_the_household_head, "like")
+    unit = router_handler.clean_param(unit, "like")
+    value = router_handler.clean_param(value, "exact")
+    value_min = router_handler.clean_param(value_min, "range_min")
+    value_max = router_handler.clean_param(value_max, "range_max")
+
+    param_configs = {
+        "limit": limit,
+        "offset": offset,
+        "survey_code": survey_code,
+        "survey": survey,
+        "indicator_code": indicator_code,
+        "indicator": indicator,
+        "element_code": element_code,
+        "element": element,
+        "flag": flag,
+        "description": description,
+        "breakdown_variable_code": breakdown_variable_code,
+        "breakdown_variable": breakdown_variable,
+        "breadown_by_sex_of_the_household_head_code": breadown_by_sex_of_the_household_head_code,
+        "breadown_by_sex_of_the_household_head": breadown_by_sex_of_the_household_head,
+        "unit": unit,
+        "value": value,
+        "value_min": value_min,
+        "value_max": value_max,
+        "sort": sort,
+    }
+
+    # Validate fields and sort for aggregation
+    if router_handler.is_aggregation:
+        # For aggregations, available fields are group_by fields + aggregation aliases
+        router_handler.all_data_fields = set(router_handler.get_aggregation_response_fields())
     
-    # Parse requested fields if specified (preserving order)
-    requested_fields = [field.strip() for field in fields.split(',') if field.strip()] if fields else None
-    requested_fields_set = set(requested_fields) if requested_fields else None
+    requested_fields, sort_columns = router_handler.validate_fields_and_sort_parameters(fields=[], sort=sort)
+
+    # Validate filter parameters
+    router_handler.validate_filter_parameters(param_configs, db)
+
+    # Apply filters
+    filter_count = router_handler.apply_filters_from_config(param_configs)
     
-    # First, build a map of all available columns
-    # Main table columns
-    for col in IndicatorsFromHouseholdSurveys.__table__.columns:
-        if col.name not in ['created_at', 'updated_at']:
-            column_map[col.name] = col
+    # Add grouping to query
+    group_columns = []
+    for field in router_handler.group_fields:
+        if field in router_handler.query_builder._field_to_column:
+            group_columns.append(router_handler.query_builder._field_to_column[field])
+        else:
+            raise HTTPException(400, f"Cannot group by '{field}' - field not available")
+
+    router_handler.query_builder.add_grouping(group_columns)
     
-    # Reference table columns
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Surveys.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "surveys_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "surveys_survey_code"
-        column_map[col_alias] = Surveys.survey_code.label(col_alias)
-        col_alias = "surveys_survey"
-        column_map[col_alias] = Surveys.survey.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Indicators.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "indicators_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "indicators_indicator_code"
-        column_map[col_alias] = Indicators.indicator_code.label(col_alias)
-        col_alias = "indicators_indicator"
-        column_map[col_alias] = Indicators.indicator.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Elements.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "elements_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "elements_element_code"
-        column_map[col_alias] = Elements.element_code.label(col_alias)
-        col_alias = "elements_element"
-        column_map[col_alias] = Elements.element.label(col_alias)
-    if include_all_reference_columns:
-        # Add all reference columns
-        for col in Flags.__table__.columns:
-            if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                col_alias = "flags_" + col.name
-                column_map[col_alias] = col.label(col_alias)
-    else:
-        # Just key columns
-        col_alias = "flags_flag"
-        column_map[col_alias] = Flags.flag.label(col_alias)
-        col_alias = "flags_description"
-        column_map[col_alias] = Flags.description.label(col_alias)
-    
-    # Now build columns list in the requested order
-    if requested_fields:
-        # Add columns in the order specified by the user
-        for field_name in requested_fields:
-            if field_name in column_map:
-                columns.append(column_map[field_name])
-            # If id is requested, include it even though we normally exclude it
-            elif field_name == 'id' and hasattr(IndicatorsFromHouseholdSurveys, 'id'):
-                columns.append(IndicatorsFromHouseholdSurveys.id)
-    else:
-        # No specific fields requested, use all available columns in default order
-        for col in IndicatorsFromHouseholdSurveys.__table__.columns:
-            if col.name not in ['created_at', 'updated_at']:
-                columns.append(col)
+    # Add aggregations to query
+    for agg_config in router_handler.agg_configs:
+        if agg_config['field'] in router_handler.query_builder._field_to_column:
+            column = router_handler.query_builder._field_to_column[agg_config['field']]
+        else:
+            raise HTTPException(400, f"Cannot aggregate '{agg_config['field']}' - field not available")
         
-        # Add reference columns in default order
-        if include_all_reference_columns:
-            for col in Surveys.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("surveys_" + col.name))
-        else:
-            columns.append(Surveys.survey_code.label("surveys_survey_code"))
-            columns.append(Surveys.survey.label("surveys_survey"))
-        if include_all_reference_columns:
-            for col in Indicators.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("indicators_" + col.name))
-        else:
-            columns.append(Indicators.indicator_code.label("indicators_indicator_code"))
-            columns.append(Indicators.indicator.label("indicators_indicator"))
-        if include_all_reference_columns:
-            for col in Elements.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("elements_" + col.name))
-        else:
-            columns.append(Elements.element_code.label("elements_element_code"))
-            columns.append(Elements.element.label("elements_element"))
-        if include_all_reference_columns:
-            for col in Flags.__table__.columns:
-                if col.name not in ['id', 'created_at', 'updated_at', 'source_dataset']:
-                    columns.append(col.label("flags_" + col.name))
-        else:
-            columns.append(Flags.flag.label("flags_flag"))
-            columns.append(Flags.description.label("flags_description"))
+        agg_type = AggregationType(agg_config['function'])
+        router_handler.query_builder.add_aggregation(column, agg_type, agg_config['alias'], agg_config['round_to'])
     
-    # Build base query
-    query = select(*columns).select_from(IndicatorsFromHouseholdSurveys)
+    # Apply aggregations
+    router_handler.query_builder.apply_aggregations()
     
-    # Add joins
-    query = query.outerjoin(Surveys, IndicatorsFromHouseholdSurveys.survey_code_id == Surveys.id)
-    query = query.outerjoin(Indicators, IndicatorsFromHouseholdSurveys.indicator_code_id == Indicators.id)
-    query = query.outerjoin(Elements, IndicatorsFromHouseholdSurveys.element_code_id == Elements.id)
-    query = query.outerjoin(Flags, IndicatorsFromHouseholdSurveys.flag_id == Flags.id)
-    
-    # Build filter conditions for both main query and count query
-    conditions = []
-    
-    # Apply foreign key filters
-    if survey_code:
-        conditions.append(Surveys.survey_code == survey_code)
-    if survey:
-        conditions.append(Surveys.survey.ilike("%" + survey + "%"))
-    if indicator_code:
-        conditions.append(Indicators.indicator_code == indicator_code)
-    if indicator:
-        conditions.append(Indicators.indicator.ilike("%" + indicator + "%"))
-    if element_code:
-        conditions.append(Elements.element_code == element_code)
-    if element:
-        conditions.append(Elements.element.ilike("%" + element + "%"))
-    if flag:
-        conditions.append(Flags.flag == flag)
-    if description:
-        conditions.append(Flags.description.ilike("%" + description + "%"))
-    
-    # Apply dataset-specific column filters
-    if breakdown_variable_code is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.breakdown_variable_code.ilike("%" + breakdown_variable_code + "%"))
-    if breakdown_variable_code_exact is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.breakdown_variable_code == breakdown_variable_code_exact)
-    if breakdown_variable is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.breakdown_variable.ilike("%" + breakdown_variable + "%"))
-    if breakdown_variable_exact is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.breakdown_variable == breakdown_variable_exact)
-    if breadown_by_sex_of_the_household_head_code is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.breadown_by_sex_of_the_household_head_code.ilike("%" + breadown_by_sex_of_the_household_head_code + "%"))
-    if breadown_by_sex_of_the_household_head_code_exact is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.breadown_by_sex_of_the_household_head_code == breadown_by_sex_of_the_household_head_code_exact)
-    if breadown_by_sex_of_the_household_head is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.breadown_by_sex_of_the_household_head.ilike("%" + breadown_by_sex_of_the_household_head + "%"))
-    if breadown_by_sex_of_the_household_head_exact is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.breadown_by_sex_of_the_household_head == breadown_by_sex_of_the_household_head_exact)
-    if unit is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.unit.ilike("%" + unit + "%"))
-    if unit_exact is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.unit == unit_exact)
-    if value is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.value == value)
-    if value_min is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.value >= value_min)
-    if value_max is not None:
-        conditions.append(IndicatorsFromHouseholdSurveys.value <= value_max)
-    
-    # Apply all conditions
-    if conditions:
-        query = query.where(*conditions)
-    
-    # Apply sorting if specified
-    if sort:
-        order_by_clauses = []
-        for sort_field in sort.split(','):
-            sort_field = sort_field.strip()
-            if sort_field:  # Skip empty strings
-                if sort_field.startswith('-'):
-                    # Descending order
-                    field_name = sort_field[1:].strip()
-                    if hasattr(IndicatorsFromHouseholdSurveys, field_name):
-                        order_by_clauses.append(getattr(IndicatorsFromHouseholdSurveys, field_name).desc())
-                else:
-                    # Ascending order
-                    if hasattr(IndicatorsFromHouseholdSurveys, sort_field):
-                        order_by_clauses.append(getattr(IndicatorsFromHouseholdSurveys, sort_field))
-        
-        if order_by_clauses:
-            query = query.order_by(*order_by_clauses)
+    # Get count
+    total_count = router_handler.query_builder.get_count(db)
+
+    # Apply sorting
+    if sort_columns:
+        router_handler.query_builder.add_ordering(sort_columns)
     else:
-        # Default ordering by ID for consistent pagination
-        query = query.order_by(IndicatorsFromHouseholdSurveys.id)
-    
-    # Get total count with filters applied
-    count_query = select(func.count()).select_from(IndicatorsFromHouseholdSurveys)
-    
-    # Add joins to count query
-    count_query = count_query.outerjoin(Surveys, IndicatorsFromHouseholdSurveys.survey_code_id == Surveys.id)
-    count_query = count_query.outerjoin(Indicators, IndicatorsFromHouseholdSurveys.indicator_code_id == Indicators.id)
-    count_query = count_query.outerjoin(Elements, IndicatorsFromHouseholdSurveys.element_code_id == Elements.id)
-    count_query = count_query.outerjoin(Flags, IndicatorsFromHouseholdSurveys.flag_id == Flags.id)
-    
-    # Apply same conditions to count query
-    if conditions:
-        count_query = count_query.where(*conditions)
-    
-    total_count = db.execute(count_query).scalar() or 0
-    
-    # Calculate pagination metadata
-    total_pages = math.ceil(total_count / limit) if limit > 0 else 1
-    current_page = (offset // limit) + 1 if limit > 0 else 1
-    
-    # Apply pagination
-    query = query.offset(offset).limit(limit)
-    
+        # Default sort for aggregations could be first group field
+        if router_handler.group_fields:
+            router_handler.query_builder.add_ordering([(router_handler.group_fields[0], "asc")])
+
     # Execute query
-    results = db.execute(query).mappings().all()
-    
-    # Convert results preserving field order
-    ordered_data = []
-    if requested_fields:
-        # Preserve the exact order from the fields parameter
-        for row in results:
-            ordered_row = {}
-            for field_name in requested_fields:
-                if field_name in row:
-                    ordered_row[field_name] = row[field_name]
-                elif field_name == 'id' and 'id' in row:
-                    ordered_row['id'] = row['id']
-            ordered_data.append(ordered_row)
-    else:
-        # No specific order requested, use as-is
-        ordered_data = [dict(row) for row in results]
-    
-    # Build pagination links
-    base_url = str(router.url_path_for('get_indicators_from_household_surveys'))
-    
-    # Collect all query parameters
-    all_params = {
-        'limit': limit,
-        'offset': offset,
-        'survey_code': survey_code,
-        'survey': survey,
-        'indicator_code': indicator_code,
-        'indicator': indicator,
-        'element_code': element_code,
-        'element': element,
-        'flag': flag,
-        'description': description,
-        'breakdown_variable_code': breakdown_variable_code,
-        'breakdown_variable_code_exact': breakdown_variable_code_exact,
-        'breakdown_variable': breakdown_variable,
-        'breakdown_variable_exact': breakdown_variable_exact,
-        'breadown_by_sex_of_the_household_head_code': breadown_by_sex_of_the_household_head_code,
-        'breadown_by_sex_of_the_household_head_code_exact': breadown_by_sex_of_the_household_head_code_exact,
-        'breadown_by_sex_of_the_household_head': breadown_by_sex_of_the_household_head,
-        'breadown_by_sex_of_the_household_head_exact': breadown_by_sex_of_the_household_head_exact,
-        'unit': unit,
-        'unit_exact': unit_exact,
-        'value': value,
-        'value_min': value_min,
-        'value_max': value_max,
-        'include_all_reference_columns': include_all_reference_columns,
-        'fields': fields,
-        'sort': sort,
-    }
-    
-    links = create_pagination_links(base_url, total_count, limit, offset, all_params)
-    
-    # Set response headers
-    response.headers["X-Total-Count"] = str(total_count)
-    response.headers["X-Total-Pages"] = str(total_pages)
-    response.headers["X-Current-Page"] = str(current_page)
-    response.headers["X-Per-Page"] = str(limit)
-    
-    # Build Link header
-    link_parts = []
-    for rel, url in links.items():
-        link_parts.append(f'<{url}>; rel="{rel}"')
-    if link_parts:
-        response.headers["Link"] = ", ".join(link_parts)
-    
-    # Return response with pagination metadata
-    return {
-        "data": ordered_data,
-        "pagination": {
-            "total": total_count,
-            "total_pages": total_pages,
-            "current_page": current_page,
-            "per_page": limit,
-            "from": offset + 1 if results else 0,
-            "to": offset + len(results),
-            "has_next": current_page < total_pages,
-            "has_prev": current_page > 1,
-        },
-        "links": links,
-        "_meta": {
-            "generated_at": datetime.utcnow().isoformat(),
-            "filters_applied": sum(1 for v in all_params.values() if v is not None and v != '' and v != False),
-        }
-    }
+    results = router_handler.query_builder.paginate(limit, offset).execute(db)
 
+    # Format aggregation results
+    response_data = router_handler.format_aggregation_results(results)
 
-# Keep all existing metadata endpoints unchanged...
-# Metadata endpoints for understanding the dataset
+    print(f"SQL Query: {router_handler.query_builder.query}")
 
-
-
-
-@router.get("/surveys")
-@cache_result(prefix="indicators_from_household_surveys:surveys", ttl=604800)
-def get_available_surveys(db: Session = Depends(get_db)):
-    """Get all surveys in this dataset"""
-    query = (
-        select(
-            Surveys.survey_code,
-            Surveys.survey
-        )
-        .where(Surveys.source_dataset == 'indicators_from_household_surveys')
-        .order_by(Surveys.survey_code)
+    # Build response
+    return router_handler.build_response(
+        request=request,
+        response=response,
+        data=response_data,
+        total_count=total_count,
+        filter_count=filter_count,
+        limit=limit,
+        offset=offset,
+        survey_code=survey_code,
+        survey=survey,
+        indicator_code=indicator_code,
+        indicator=indicator,
+        element_code=element_code,
+        element=element,
+        flag=flag,
+        description=description,
+        breakdown_variable_code=breakdown_variable_code,
+        breakdown_variable=breakdown_variable,
+        breadown_by_sex_of_the_household_head_code=breadown_by_sex_of_the_household_head_code,
+        breadown_by_sex_of_the_household_head=breadown_by_sex_of_the_household_head,
+        unit=unit,
+        value=value,
+        value_min=value_min,
+        value_max=value_max,
+        sort=sort,
     )
-    
-    results = db.execute(query).all()
-    
-    return {
-        "dataset": "indicators_from_household_surveys",
-        "total_surveys": len(results),
-        "surveys": [
-            {
-                "survey_code": r.survey_code,
-                "survey": r.survey
-            }
-            for r in results
-        ]
-    }
 
 
 
-
-@router.get("/indicators")
-@cache_result(prefix="indicators_from_household_surveys:indicators", ttl=604800)
-def get_available_indicators(db: Session = Depends(get_db)):
-    """Get all indicators in this dataset"""
-    query = (
-        select(
-            Indicators.indicator_code,
-            Indicators.indicator
-        )
-        .where(Indicators.source_dataset == 'indicators_from_household_surveys')
-        .order_by(Indicators.indicator_code)
-    )
-    
-    results = db.execute(query).all()
-    
-    return {
-        "dataset": "indicators_from_household_surveys",
-        "total_indicators": len(results),
-        "indicators": [
-            {
-                "indicator_code": r.indicator_code,
-                "indicator": r.indicator
-            }
-            for r in results
-        ]
-    }
-
-
-@router.get("/elements")
+# ----------------------------------------
+# ========== Metadata Endpoints ==========
+# ----------------------------------------
+@router.get("/elements", summary="Get Elements in indicators_from_household_surveys")
 @cache_result(prefix="indicators_from_household_surveys:elements", ttl=604800)
-def get_available_elements(db: Session = Depends(get_db)):
-    """Get all elements (measures/indicators) in this dataset"""
+async def get_available_elements(
+    db: Session = Depends(get_db),
+    search: Optional[str] = Query(None, description="Search element by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Set True to include distribution statistics"),
+):
+    """Get all elements (measures/indicators) available in this dataset."""
     query = (
         select(
-            Elements.element_code,  
-            Elements.element
+            Elements.element_code,
+            Elements.element,
         )
+        .select_from(Elements)
         .where(Elements.source_dataset == 'indicators_from_household_surveys')
-        .order_by(Elements.element_code)
+        .group_by(
+            Elements.element_code,
+            Elements.element,
+        )
     )
+
+    if include_distribution:
+        query = (
+            select(
+                Elements.element_code,
+                Elements.element,
+                func.count(IndicatorsFromHouseholdSurveys.id).label('record_count')
+            )
+            .select_from(Elements)
+            .join(IndicatorsFromHouseholdSurveys, Elements.id == IndicatorsFromHouseholdSurveys.element_id)
+            .where(Elements.source_dataset == 'indicators_from_household_surveys')
+            .group_by(
+                Elements.element_code,
+                Elements.element,
+            )
+        )
+    # Apply filters
+    if search:
+        query = query.where(
+            or_(
+                Elements.element.ilike(f"%{search}%"),
+                Elements.element_code.cast(String).like(f"{search}%")
+            )
+        )
+   
     
+    # Execute
+    query = query.order_by(Elements.element_code)
     results = db.execute(query).all()
-    
-    return {
-        "dataset": "indicators_from_household_surveys",
-        "total_elements": len(results),
-        "elements": [
+    items = [
+        {
+            "element_code": r.element_code,
+            "element": r.element,
+        }
+        for r in results
+    ]
+
+    if include_distribution:
+        # If distribution is requested, we need to count records for each element
+        items = [
             {
                 "element_code": r.element_code,
                 "element": r.element,
+                "record_count": r.record_count,
             }
             for r in results
         ]
-    }
+        
+    return ResponseFormatter.format_metadata_response(
+        dataset="indicators_from_household_surveys",
+        metadata_type="elements",
+        total=len(results),
+        items=items
+    )
 
-
-
-
-
-@router.get("/flags")
+@router.get("/flags", summary="Get Flags in indicators_from_household_surveys")
 @cache_result(prefix="indicators_from_household_surveys:flags", ttl=604800)
-def get_data_quality_summary(db: Session = Depends(get_db)):
-    """Get data quality flag distribution for this dataset"""
+async def get_available_flags(
+    db: Session = Depends(get_db),
+    search: Optional[str] = Query(None, description="Search description by name or code"),
+    include_distribution: Optional[bool] = Query(False, description="Include distribution statistics"),
+):
+    """Get data quality flag information and optionally their distribution in the dataset."""
+    # Get all flags used in this dataset
     query = (
         select(
+            Flags.id,
             Flags.flag,
             Flags.description,
             func.count(IndicatorsFromHouseholdSurveys.id).label('record_count')
         )
         .join(IndicatorsFromHouseholdSurveys, Flags.id == IndicatorsFromHouseholdSurveys.flag_id)
-        .group_by(Flags.flag, Flags.description)
+        .group_by(Flags.id, Flags.flag, Flags.description)
         .order_by(func.count(IndicatorsFromHouseholdSurveys.id).desc())
+    )
+
+    # Apply search filter
+    if search:
+        query = query.where(
+            or_(
+                Flags.description.ilike(f"%{search}%"),
+                Flags.flag.cast(String) == search,
+            )
+        )
+    
+    flags = db.execute(query).all()
+    
+    flag_info = []
+    for flag in flags:
+        info = {
+            "flag_id": flag.id,
+            "flag": flag.flag,
+            "description": flag.description,
+        }
+        
+        if include_distribution:
+            # Count records with this flag
+            count = db.execute(
+                select(func.count())
+                .select_from(IndicatorsFromHouseholdSurveys)
+                .where(IndicatorsFromHouseholdSurveys.flag_id == flag.id)
+            ).scalar() or 0
+            
+            info["record_count"] = count
+        
+        flag_info.append(info)
+    
+    response = {
+        "dataset": "indicators_from_household_surveys",
+        "total_flags": len(flag_info),
+        "flags": flag_info,
+    }
+    
+    if include_distribution:
+        # Get total records
+        total_records = db.execute(
+            select(func.count()).select_from(IndicatorsFromHouseholdSurveys)
+        ).scalar() or 0
+        
+        response["total_records"] = total_records
+        response["flag_distribution"] = {
+            flag["flag"]: {
+                "count": flag["record_count"],
+                "percentage": round((flag["record_count"] / total_records) * 100, 2) if total_records > 0 else 0
+            }
+            for flag in flag_info
+        }
+    
+    return response
+
+@router.get("/units", summary="Get units of measurement in indicators_from_household_surveys")
+@cache_result(prefix="indicators_from_household_surveys:units", ttl=604800)
+async def get_available_units(db: Session = Depends(get_db)):
+    """Get all units of measurement used in this dataset."""
+    query = (
+        select(
+            IndicatorsFromHouseholdSurveys.unit,
+            func.count(IndicatorsFromHouseholdSurveys.id).label('record_count')
+        )
+        .select_from(IndicatorsFromHouseholdSurveys)
+        .group_by(IndicatorsFromHouseholdSurveys.unit)
+        .order_by(IndicatorsFromHouseholdSurveys.unit)
     )
     
     results = db.execute(query).all()
     
-    return {
-        "dataset": "indicators_from_household_surveys",
-        "total_records": sum(r.record_count for r in results),
-        "flag_distribution": [
+    return ResponseFormatter.format_metadata_response(
+        dataset="indicators_from_household_surveys",
+        metadata_type="units",
+        total=len(results),
+        items=[
             {
-                "flag": r.flag,
-                "description": r.description,
+                "unit": r.unit,
                 "record_count": r.record_count,
-                "percentage": round(r.record_count / sum(r2.record_count for r2 in results) * 100, 2)
             }
             for r in results
         ]
-    }
+    )
 
-
-
-@router.get("/summary")
-@cache_result(prefix="indicators_from_household_surveys:summary", ttl=604800)
-def get_dataset_summary(db: Session = Depends(get_db)):
-    """Get comprehensive summary of this dataset"""
-    total_records = db.query(func.count(IndicatorsFromHouseholdSurveys.id)).scalar()
-    
-    summary = {
+# -----------------------------------------------
+# ========== Dataset Overview Endpoint ==========
+# -----------------------------------------------
+@router.get("/overview", summary="Get complete overview of indicators_from_household_surveys dataset")
+@cache_result(prefix="indicators_from_household_surveys:overview", ttl=3600)
+async def get_dataset_overview(db: Session = Depends(get_db)):
+    """Get a complete overview of the dataset including all available dimensions and statistics."""
+    overview = {
         "dataset": "indicators_from_household_surveys",
-        "total_records": total_records,
-        "foreign_keys": [
-            "surveys",
-            "indicators",
-            "elements",
-            "flags",
-        ]
+        "description": "",
+        "last_updated": datetime.utcnow().isoformat(),
+        "dimensions": {},
+        "statistics": {}
     }
     
-    summary["unique_surveys"] = db.query(func.count(func.distinct(IndicatorsFromHouseholdSurveys.survey_code_id))).scalar()
-    summary["unique_indicators"] = db.query(func.count(func.distinct(IndicatorsFromHouseholdSurveys.indicator_code_id))).scalar()
-    summary["unique_elements"] = db.query(func.count(func.distinct(IndicatorsFromHouseholdSurveys.element_code_id))).scalar()
-    summary["unique_flags"] = db.query(func.count(func.distinct(IndicatorsFromHouseholdSurveys.flag_id))).scalar()
+    # Total records
+    total_records = db.execute(
+        select(func.count()).select_from(IndicatorsFromHouseholdSurveys)
+    ).scalar() or 0
+    overview["statistics"]["total_records"] = total_records
     
-    return summary
+
+    survey_code_ids = db.execute(
+        select(func.count(func.distinct(IndicatorsFromHouseholdSurveys.survey_code_id)))
+        .select_from(IndicatorsFromHouseholdSurveys)
+    ).scalar() or 0
+
+    overview["dimensions"]["surveys"] = {
+        "count": survey_code_ids,
+        "endpoint": f"/indicators_from_household_surveys/surveys"
+    }
+
+    indicator_code_ids = db.execute(
+        select(func.count(func.distinct(IndicatorsFromHouseholdSurveys.indicator_code_id)))
+        .select_from(IndicatorsFromHouseholdSurveys)
+    ).scalar() or 0
+
+    overview["dimensions"]["indicators"] = {
+        "count": indicator_code_ids,
+        "endpoint": f"/indicators_from_household_surveys/indicators"
+    }
+
+    element_code_ids = db.execute(
+        select(func.count(func.distinct(IndicatorsFromHouseholdSurveys.element_code_id)))
+        .select_from(IndicatorsFromHouseholdSurveys)
+    ).scalar() or 0
+
+    overview["dimensions"]["elements"] = {
+        "count": element_code_ids,
+        "endpoint": f"/indicators_from_household_surveys/elements"
+    }
+
+    flag_ids = db.execute(
+        select(func.count(func.distinct(IndicatorsFromHouseholdSurveys.flag_id)))
+        .select_from(IndicatorsFromHouseholdSurveys)
+    ).scalar() or 0
+
+    overview["dimensions"]["flags"] = {
+        "count": flag_ids,
+        "endpoint": f"/indicators_from_household_surveys/flags"
+    }
+    
+    
+    # Value statistics
+    value_stats = db.execute(
+        select(
+            func.min(IndicatorsFromHouseholdSurveys.value).label('min_value'),
+            func.max(IndicatorsFromHouseholdSurveys.value).label('max_value'),
+            func.avg(IndicatorsFromHouseholdSurveys.value).label('avg_value')
+        )
+        .select_from(IndicatorsFromHouseholdSurveys)
+        .where(and_(IndicatorsFromHouseholdSurveys.value > 0, IndicatorsFromHouseholdSurveys.value.is_not(None)))
+    ).first()
+    
+    overview["statistics"]["values"] = {
+        "min": float(value_stats.min_value) if value_stats.min_value else None,
+        "max": float(value_stats.max_value) if value_stats.max_value else None,
+        "average": round(float(value_stats.avg_value), 2) if value_stats.avg_value else None,
+    }
+    
+    # Available endpoints
+    overview["endpoints"] = {
+        "data": f"/indicators_from_household_surveys",
+        "aggregate": f"/indicators_from_household_surveys/aggregate",
+        "summary": f"/indicators_from_household_surveys/summary",
+        "overview": f"/indicators_from_household_surveys/overview",
+        "elements": f"/indicators_from_household_surveys/elements",
+        "flags": f"/indicators_from_household_surveys/flags",
+    }
+    
+    return overview
+
+ 
+@router.get("/health", tags=["health"])
+async def health_check(db: Session = Depends(get_db)):
+    """Check if the indicators_from_household_surveys endpoint is healthy."""
+    try:
+        # Try to execute a simple query
+        result = db.execute(select(func.count()).select_from(IndicatorsFromHouseholdSurveys)).scalar()
+        return {
+            "status": "healthy",
+            "dataset": "indicators_from_household_surveys",
+            "records": result
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Health check failed: {str(e)}")

@@ -23,6 +23,9 @@ from .purposes.__main__ import run_all as run_purposes
 from .donors.__main__ import run_all as run_donors
 from .food_groups.__main__ import run_all as run_food_groups
 from .geographic_levels.__main__ import run_all as run_geographic_levels
+from .food_values.__main__ import run_all as run_food_values
+from .industries.__main__ import run_all as run_industries
+from .factors.__main__ import run_all as run_factors
 from .aquastat.__main__ import run_all as run_aquastat
 from .asti_expenditures.__main__ import run_all as run_asti_expenditures
 from .asti_researchers.__main__ import run_all as run_asti_researchers
@@ -165,6 +168,9 @@ def run_all_pipelines(db):
         "donors": run_donors,
         "food_groups": run_food_groups,
         "geographic_levels": run_geographic_levels,
+        "food_values": run_food_values,
+        "industries": run_industries,
+        "factors": run_factors,
         "aquastat": run_aquastat,
         "asti_expenditures": run_asti_expenditures,
         "asti_researchers": run_asti_researchers,
