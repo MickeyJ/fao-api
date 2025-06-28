@@ -24,7 +24,10 @@ from .commodity_balances_non_food_2010_config import CommodityBalancesNonFood201
 from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
 from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
 
-
+from fao.src.core.exceptions import (
+    invalid_parameter,
+    incompatible_parameters,
+)
 
 router = APIRouter(
     prefix="/commodity_balances_non_food_2010",
@@ -218,9 +221,10 @@ async def get_commodity_balances_non_food_2010_aggregated(
     - Sum by year: `group_by=year&aggregations=value:sum`
     - Average by area and year: `group_by=area_code,year&aggregations=value:avg`
     - Multiple aggregations: `aggregations=value:sum:total_value,value:avg:average_value`
-    
+ 
+
     ## Aggregation Functions
-    - sum, avg, min, max, count, count_distinct
+    - sum, avg, min, max, count, count_distinct, stddev, variance, median, string_agg, count_if, sum_if
     """
     
     # ------------------------------------------------------------------------
@@ -302,7 +306,11 @@ async def get_commodity_balances_non_food_2010_aggregated(
         if field in router_handler.query_builder._field_to_column:
             group_columns.append(router_handler.query_builder._field_to_column[field])
         else:
-            raise HTTPException(400, f"Cannot group by '{field}' - field not available")
+            raise invalid_parameter(
+                    params="group_by",
+                    value=f"{group_by}",
+                    reason=f"Cannot group by '{field}' - field not available. Available fields: {router_handler.query_builder._field_to_column.keys()}",
+                )
 
     router_handler.query_builder.add_grouping(group_columns)
     
@@ -311,7 +319,11 @@ async def get_commodity_balances_non_food_2010_aggregated(
         if agg_config['field'] in router_handler.query_builder._field_to_column:
             column = router_handler.query_builder._field_to_column[agg_config['field']]
         else:
-            raise HTTPException(400, f"Cannot aggregate '{agg_config['field']}' - field not available")
+            raise invalid_parameter(
+                    params="group_by",
+                    value=f"{group_by}",
+                    reason=f"Cannot aggregate '{agg_config['field']}' - field not available. Available fields: {router_handler.query_builder._field_to_column.keys()}",
+                )
         
         agg_type = AggregationType(agg_config['function'])
         router_handler.query_builder.add_aggregation(column, agg_type, agg_config['alias'], agg_config['round_to'])

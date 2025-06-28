@@ -20,7 +20,10 @@ from .food_values_config import FoodValuesConfig
 from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
 from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
 
-
+from fao.src.core.exceptions import (
+    invalid_parameter,
+    incompatible_parameters,
+)
 
 router = APIRouter(
     prefix="/food_values",
