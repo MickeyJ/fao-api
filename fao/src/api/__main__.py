@@ -108,9 +108,11 @@ try:
         app.include_router(custom_router)
     print(f"✅ Loaded {len(custom_routers)} custom routers")
 except ImportError as e:
-    print("ℹ️  No custom routers found")
+    print(f"ℹ️  No custom routers found: {e}")
+    raise e
 except Exception as e:
     print(f"⚠️  Error loading custom routers: {e}")
+    raise e
 
 # Root endpoint with version info
 @app.get("/")
