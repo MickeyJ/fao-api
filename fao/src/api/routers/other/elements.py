@@ -20,7 +20,10 @@ from .elements_config import ElementsConfig
 from fao.src.api.utils.query_helpers import QueryBuilder, AggregationType
 from fao.src.api.utils.response_helpers import PaginationBuilder, ResponseFormatter
 
-
+from fao.src.core.exceptions import (
+    invalid_parameter,
+    incompatible_parameters,
+)
 
 router = APIRouter(
     prefix="/elements",
